@@ -24,6 +24,14 @@ The toolkit should help a developer and agent move through the full lifecycle:
 
 The toolkit exists to keep agents inside the Probe-Driven Development workflow. It should prevent common failure modes: writing architecture documents instead of code, creating detached prototypes, overbuilding production features too early, losing the implementation order, and letting TODO markers become stale.
 
+## Product behavior
+
+Canonical product behavior is described in [`features/`](features/).
+
+The `.feature` files are the source of truth for what the software does. They are product specifications first and executable BDD scenarios second.
+
+Implementation progress is tracked by probe evolutions by referencing stable feature and scenario IDs
+
 ## Commands
 
 ### `probe discuss`
