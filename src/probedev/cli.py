@@ -38,6 +38,74 @@ class ProbePlan:
     def sequence_names(self) -> set[str]:
         return {sequence_name(evolution.marker) for evolution in self.evolutions}
 
+    @property
+    def has_ambiguous_default_evolution(self) -> bool:
+        return len(self.sequence_names) > 1
+
+    def duplicate_markers(self) -> list[str]:
+        return sorted(
+            marker
+            for marker in {e.marker for e in self.evolutions}
+            if sum(1 for item in self.evolutions if item.marker == marker) > 1
+        )
+
+    def next_by_sequence(self) -> dict[str, Evolution]:
+        return {sequence: self.next_in_sequence(sequence) for sequence in self.sequence_names}
+
+    def next_in_sequence(self, sequence: str) -> Evolution:
+        return next(evolution for evolution in self.evolutions if sequence_name(evolution.marker) == sequence)
+
+    def select_evolution(self, marker: str | None) -> Evolution | None:
+        if marker is None:
+            return self.evolutions[0] if self.evolutions else None
+        for evolution in self.evolutions:
+            if evolution.marker == marker:
+                return evolution
+        return None
+
+
+class ProbePlanParser:
+    def scan(self, root: Path) -> ProbePlan:
+        evolutions = []
+        malformed = []
+        for path in self._iter_scannable_files(root):
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except UnicodeDecodeError:
+                continue
+            for line_number, line in enumerate(lines, start=1):
+                self._append_marker(evolutions, malformed, path, line_number, line)
+        return ProbePlan(
+            sorted(evolutions, key=lambda item: (sequence_name(item.marker), item.marker, str(item.path), item.line)),
+            sorted(malformed, key=lambda item: (str(item.path), item.line)),
+        )
+
+    def _append_marker(
+        self,
+        evolutions: list[Evolution],
+        malformed: list[MalformedEvolution],
+        path: Path,
+        line_number: int,
+        line: str,
+    ) -> None:
+        if not self._is_comment_marker_candidate(line):
+            return
+        if match := TODO_RE.search(line):
+            evolutions.append(Evolution(match.group(1), match.group(2).strip(), path, line_number))
+        else:
+            malformed.append(MalformedEvolution(line.strip(), path, line_number))
+
+    def _iter_scannable_files(self, root: Path) -> Iterable[Path]:
+        for path in root.rglob("*"):
+            if any(part in SKIPPED_DIRS for part in path.parts):
+                continue
+            if path.is_file() and path.suffix not in SKIPPED_SUFFIXES:
+                yield path
+
+    def _is_comment_marker_candidate(self, line: str) -> bool:
+        stripped = line.lstrip()
+        return stripped.startswith(("#", "//", "/*", "*", "<!--")) and bool(TODO_CANDIDATE_RE.search(stripped))
+
 
 @dataclass(frozen=True)
 class Workspace:
@@ -53,6 +121,9 @@ class Workspace:
 
     def read_intent(self) -> str:
         return self.readme.read_text(encoding="utf-8") if self.readme.exists() else ""
+
+    def read_probe_plan(self) -> ProbePlan:
+        return ProbePlanParser().scan(self.root)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -109,7 +180,7 @@ def run_refine(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> 
         out.write("No README.md intent found. Run probe discuss after adding intent.\n")
         return 1
 
-    plan = scan_plan(workspace.root)
+    plan = workspace.read_probe_plan()
     out.write("Refinement target\n")
     out.write(f"- intent: {workspace.readme.relative_to(workspace.root)}\n")
     out.write(f"- process: {workspace.process_readme.relative_to(workspace.root)}\n")
@@ -127,13 +198,8 @@ def run_challenge(_args: argparse.Namespace, workspace: Workspace, out: TextIO) 
     if not workspace.process_readme.exists():
         problems.append("missing pdd/README.md process reference")
 
-    plan = scan_plan(workspace.root)
-    duplicate_markers = sorted(
-        marker
-        for marker in {e.marker for e in plan.evolutions}
-        if sum(1 for item in plan.evolutions if item.marker == marker) > 1
-    )
-    problems.extend(f"duplicate marker {marker}" for marker in duplicate_markers)
+    plan = workspace.read_probe_plan()
+    problems.extend(f"duplicate marker {marker}" for marker in plan.duplicate_markers())
     problems.extend(f"malformed marker at {item.path.relative_to(workspace.root)}:{item.line}" for item in plan.malformed)
     if not plan.evolutions:
         problems.append("no ordered TODO(PROBE-...) evolutions found")
@@ -147,18 +213,18 @@ def run_challenge(_args: argparse.Namespace, workspace: Workspace, out: TextIO) 
 
     # TODO(PROBE-040): Compare README capabilities to executable commands and flag missing or stale evolutions.
     # TODO(PROBE-050): Validate optional BDD feature links for user-observable evolutions during challenge.
-    return 0
+    return 1 if problems else 0
 
 
 def run_list(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
-    plan = scan_plan(workspace.root)
+    plan = workspace.read_probe_plan()
     if not plan.evolutions and not plan.malformed:
         out.write("No TODO(PROBE-...) evolutions found.\n")
         return 1
 
     # TODO(PROBE-055): Report malformed, duplicate, and confusing evolution sequences in list output.
     out.write("Ordered probe plan\n")
-    next_by_sequence = {sequence: next_in_sequence(plan.evolutions, sequence) for sequence in plan.sequence_names}
+    next_by_sequence = plan.next_by_sequence()
     for evolution in plan.evolutions:
         prefix = "next" if next_by_sequence[sequence_name(evolution.marker)] == evolution else "    "
         location = f"{evolution.path.relative_to(workspace.root)}:{evolution.line}"
@@ -170,15 +236,15 @@ def run_list(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> in
 
 
 def run_evolve(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
-    plan = scan_plan(workspace.root)
+    plan = workspace.read_probe_plan()
     if not plan.evolutions:
         out.write("No TODO(PROBE-...) evolutions found.\n")
         return 1
-    if args.marker is None and len(plan.sequence_names) > 1:
+    if args.marker is None and plan.has_ambiguous_default_evolution:
         out.write("Multiple probe sequences found. Specify the evolution marker to apply.\n")
         return 1
 
-    selected = select_evolution(plan.evolutions, args.marker)
+    selected = plan.select_evolution(args.marker)
     if selected is None:
         out.write(f"Evolution {args.marker} was not found.\n")
         return 1
@@ -191,51 +257,6 @@ def run_evolve(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> i
     # TODO(PROBE-060): Add an agent execution boundary that applies one selected evolution and runs targeted verification.
     # TODO(PROBE-070): During evolve, add the smallest linked BDD feature only when the selected evolution needs one.
     return 0
-
-
-def scan_plan(root: Path) -> ProbePlan:
-    evolutions = []
-    malformed = []
-    for path in iter_scannable_files(root):
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except UnicodeDecodeError:
-            continue
-        for line_number, line in enumerate(lines, start=1):
-            if match := TODO_RE.search(line):
-                evolutions.append(Evolution(match.group(1), match.group(2).strip(), path, line_number))
-            elif is_comment_marker_candidate(line):
-                malformed.append(MalformedEvolution(line.strip(), path, line_number))
-    return ProbePlan(
-        sorted(evolutions, key=lambda item: (sequence_name(item.marker), item.marker, str(item.path), item.line)),
-        sorted(malformed, key=lambda item: (str(item.path), item.line)),
-    )
-
-
-def iter_scannable_files(root: Path) -> Iterable[Path]:
-    for path in root.rglob("*"):
-        if any(part in SKIPPED_DIRS for part in path.parts):
-            continue
-        if path.is_file() and path.suffix not in SKIPPED_SUFFIXES:
-            yield path
-
-
-def select_evolution(evolutions: list[Evolution], marker: str | None) -> Evolution | None:
-    if marker is None:
-        return evolutions[0]
-    for evolution in evolutions:
-        if evolution.marker == marker:
-            return evolution
-    return None
-
-
-def is_comment_marker_candidate(line: str) -> bool:
-    stripped = line.lstrip()
-    return stripped.startswith(("#", "//", "/*", "*", "<!--")) and bool(TODO_CANDIDATE_RE.search(stripped))
-
-
-def next_in_sequence(evolutions: list[Evolution], sequence: str) -> Evolution:
-    return next(evolution for evolution in evolutions if sequence_name(evolution.marker) == sequence)
 
 
 def sequence_name(marker: str) -> str:

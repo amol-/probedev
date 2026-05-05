@@ -58,6 +58,29 @@ def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
     assert "warn MALFORMED tool.py:1" in capsys.readouterr().out
 
 
+def test_probe_list_ignores_marker_text_inside_string_literals(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "tool.py"
+    source.write_text('message = "TODO(PROBE-010): Not a real marker."\n', encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 1
+    assert capsys.readouterr().out == "No TODO(PROBE-...) evolutions found.\n"
+
+
+def test_probe_challenge_fails_when_findings_are_present(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(PROBE-"
+    source = tmp_path / "tool.py"
+    source.write_text(f"# {marker}10): Missing zero padding.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "challenge"])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "missing README.md intent" in output
+    assert "malformed marker at tool.py:1" in output
+
+
 def test_probe_evolve_requires_marker_for_multiple_sequences(tmp_path: Path, capsys) -> None:
     marker = "TODO" + "(PROBE-"
     source = tmp_path / "tool.py"
