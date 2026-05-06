@@ -90,6 +90,7 @@ class ProbePlanParser:
         malformed = []
         for path in self._iter_scannable_files(root):
             try:
+                # TODO(EVO-XXX): Skip permission denied or  unaccessible files instead of crash
                 lines = path.read_text(encoding="utf-8").splitlines()
             except UnicodeDecodeError:
                 continue
