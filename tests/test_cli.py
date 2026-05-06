@@ -168,3 +168,58 @@ def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
         "next PROBE-010 tool.py:2 Add the first step.",
         "     PROBE-020 tool.py:1 Add the second step.",
     ]
+
+
+def test_probe_refine_records_new_evolution_without_applying_it(project_root: Path, capsys) -> None:
+    exit_code = main(["--root", str(project_root), "refine", "Add README-aware refinement."])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "Recorded evolution" in output
+    assert "- marker: PROBE-020" in output
+    assert "- title: Add README-aware refinement." in output
+    assert "TODO(PROBE-020): Add README-aware refinement." in (project_root / "tool.py").read_text(encoding="utf-8")
+
+
+def test_probe_refine_records_new_evolution_in_requested_path(project_root: Path, capsys) -> None:
+    exit_code = main(
+        [
+            "--root",
+            str(project_root),
+            "refine",
+            "--path",
+            "src/tool.py",
+            "Add a path-specific evolution.",
+        ]
+    )
+
+    assert exit_code == 0
+    assert "- location: src/tool.py:1" in capsys.readouterr().out
+    assert (project_root / "src" / "tool.py").read_text(encoding="utf-8") == (
+        "# TODO(PROBE-020): Add a path-specific evolution.\n"
+    )
+
+
+def test_probe_refine_reports_actual_line_when_appending_to_existing_path(project_root: Path, capsys) -> None:
+    target = project_root / "src" / "tool.py"
+    target.parent.mkdir()
+    target.write_text("print('ready')\n", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "--root",
+            str(project_root),
+            "refine",
+            "--path",
+            "src/tool.py",
+            "Add an appended evolution.",
+        ]
+    )
+
+    assert exit_code == 0
+    assert "- location: src/tool.py:3" in capsys.readouterr().out
+    assert target.read_text(encoding="utf-8").splitlines() == [
+        "print('ready')",
+        "",
+        "# TODO(PROBE-020): Add an appended evolution.",
+    ]

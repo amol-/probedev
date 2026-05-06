@@ -140,6 +140,11 @@ def run_refine(command_context: CommandContext, capsys: pytest.CaptureFixture[st
     run_probe(command_context, capsys, ["refine"])
 
 
+@when("the developer runs `probe refine` with a new evolution title")
+def run_refine_with_title(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["refine", "Add README-aware refinement."])
+
+
 @when("the developer runs `probe challenge`")
 def run_challenge(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["challenge"])
@@ -208,6 +213,22 @@ def assert_refinement_details(command_context: CommandContext) -> None:
 @then("the system tells the developer to add intent before refinement")
 def assert_refine_requires_intent(command_context: CommandContext) -> None:
     assert "No README.md intent found" in command_context.output
+
+
+@then("the system records a new evolution marker")
+def assert_refine_records_marker(command_context: CommandContext) -> None:
+    assert "Recorded evolution" in command_context.output
+    assert "- marker: PROBE-020" in command_context.output
+    assert "- title: Add README-aware refinement." in command_context.output
+
+
+@then("the marker is visible to `probe list`")
+def assert_recorded_marker_is_listed(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--root", str(command_context.root), "list"])
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "PROBE-020" in output
+    assert "Add README-aware refinement." in output
 
 
 @then("the system prints challenge findings")

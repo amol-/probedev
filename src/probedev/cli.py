@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, TextIO
 
 from probedev.plan import ProbePlan, ProbePlanParser, sequence_name
+from probedev.refinement import EvolutionRecorder, RefinementRequest
 
 
 EXIT_SUCCESS = 0
@@ -61,7 +62,10 @@ def build_parser() -> argparse.ArgumentParser:
         return command
 
     add_command("discuss", "challenge and improve README intent", run_discuss)
-    add_command("refine", "create or evolve the executable probe", run_refine)
+    refine = add_command("refine", "create or evolve the executable probe", run_refine)
+    refine.add_argument("title", nargs="*", help="evolution title to add without applying it")
+    refine.add_argument("--path", type=Path, help="source file where the evolution marker belongs")
+    # TODO(PROBE-080): Place refine markers from README/code context and create small code anchors when no natural location exists.
     add_command("challenge", "challenge probe code against README intent", run_challenge)
     add_command("list", "list ordered TODO(PROBE-...) evolutions", run_list)
     evolve = add_command("evolve", "apply one ordered evolution", run_evolve)
@@ -93,10 +97,10 @@ def run_discuss(_args: argparse.Namespace, workspace: Workspace, out: TextIO) ->
     return EXIT_SUCCESS
 
 
-def run_refine(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
-    """Print the current refinement target without changing code.
+def run_refine(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
+    """Print the current refinement target or record one new evolution.
 
-    :param argparse.Namespace _args: Parsed command arguments.
+    :param argparse.Namespace args: Parsed command arguments.
     :param Workspace workspace: Project workspace to inspect.
     :param TextIO out: Output stream for command text.
     """
@@ -110,6 +114,20 @@ def run_refine(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> 
     out.write(f"- intent: {workspace.readme.relative_to(workspace.root)}\n")
     out.write(f"- process: {workspace.process_readme.relative_to(workspace.root)}\n")
     out.write(f"- active evolutions: {len(plan.evolutions)}\n")
+    if args.title:
+        try:
+            recorded = EvolutionRecorder().record(workspace.root, plan, RefinementRequest(" ".join(args.title), args.path))
+        except ValueError as exc:
+            out.write(f"Could not record evolution: {exc}\n")
+            return EXIT_FAILURE
+        # TODO(PROBE-090): Support named sequences and explicit insertion between existing evolution markers.
+        out.write("Recorded evolution\n")
+        out.write(f"- marker: {recorded.marker}\n")
+        out.write(f"- title: {recorded.title}\n")
+        out.write(f"- location: {recorded.path.relative_to(workspace.root)}:{recorded.line}\n")
+        out.write(f"Run probe evolve {recorded.marker} when you are ready to apply it.\n")
+        return EXIT_SUCCESS
+
     out.write("Use the real project entrypoint and keep the probe executable.\n")
     # TODO(PROBE-020): Teach refine to create or evolve code through the real project entrypoint for each supported project state.
     # TODO(PROBE-030): Store the refine result as code-local TODO(PROBE-...) markers that cover every README capability.

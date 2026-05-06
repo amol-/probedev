@@ -6,6 +6,7 @@ Feature: Refine an architectural probe
   Rules:
     - Refinement requires README intent.
     - Refinement reports the current intent source, process source, and active evolution count.
+    - Refinement can record one new ordered evolution marker without applying it.
     - Refinement keeps the user focused on a realistic executable entrypoint.
 
   @id:F-COMMANDS-REFINE-S001
@@ -21,3 +22,12 @@ Feature: Refine an architectural probe
     When the developer runs `probe refine`
     Then the system tells the developer to add intent before refinement
     And the command fails.
+
+  @id:F-COMMANDS-REFINE-S003
+  Scenario: Refinement records one requested evolution
+    Given a workspace with README intent
+    And the workspace has ordered evolution markers
+    When the developer runs `probe refine` with a new evolution title
+    Then the system records a new evolution marker
+    And the marker is visible to `probe list`
+    And the command succeeds.
