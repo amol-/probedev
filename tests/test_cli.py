@@ -114,6 +114,35 @@ def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
     ]
 
 
+def test_probe_list_prints_multiline_evolution_description_with_aligned_continuations(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                f"# {marker}010): recent tracked item payload validation is repetitive;",
+                "# consider a structured parser/helper that preserves these precise",
+                "# error messages while reducing the long sequence of type checks.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.py",
+        "  next EVO-010 line 1 recent tracked item payload validation is repetitive;",
+        "                      consider a structured parser/helper that preserves these precise",
+        "                      error messages while reducing the long sequence of type checks.",
+    ]
+
+
 def test_probe_plan_skips_files_that_cannot_be_read(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

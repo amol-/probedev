@@ -115,6 +115,20 @@ def workspace_with_unreadable_source(
     monkeypatch.setattr(Path, "read_text", fake_read_text)
 
 
+@given("a workspace with a multiline evolution marker")
+def workspace_with_multiline_evolution_marker(command_context: CommandContext, marker_prefix: str) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                f"# {marker_prefix}010): recent tracked item payload validation is repetitive;",
+                "# consider a structured parser/helper that preserves these precise",
+                "# error messages while reducing the long sequence of type checks.",
+            ]
+        ),
+    )
+
+
 @given("a workspace with pending evolutions that have no ids")
 def workspace_with_missing_evolution_ids(command_context: CommandContext) -> None:
     write_source(
@@ -480,6 +494,27 @@ def assert_readable_marker_listed(command_context: CommandContext) -> None:
 @then("the system prints an unreadable file warning")
 def assert_unreadable_warning(command_context: CommandContext) -> None:
     assert "warn UNREADABLE unreadable.py skipped during plan scan" in command_context.output
+
+
+@then("the system prints the marker id and marker line number once")
+def assert_multiline_marker_columns_once(command_context: CommandContext) -> None:
+    assert command_context.output.count("EVO-010 line 1") == 1
+
+
+@then("the system prints all continuation lines as part of the same evolution")
+def assert_multiline_continuations_printed(command_context: CommandContext) -> None:
+    assert "recent tracked item payload validation is repetitive;" in command_context.output
+    assert "consider a structured parser/helper that preserves these precise" in command_context.output
+    assert "error messages while reducing the long sequence of type checks." in command_context.output
+
+
+@then("the continuation lines are aligned with the evolution description column")
+def assert_multiline_continuations_aligned(command_context: CommandContext) -> None:
+    output_lines = command_context.output.splitlines()
+    first = next(line for line in output_lines if "EVO-010 line 1" in line)
+    continuation = next(line for line in output_lines if "consider a structured parser/helper" in line)
+    expected_indent = first.index("recent tracked")
+    assert continuation.index("consider") == expected_indent
 
 
 @then("the system reports that no probe evolutions were found")

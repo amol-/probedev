@@ -9,6 +9,8 @@ Feature: List ordered evolutions
     - List orders files by path.
     - List orders evolutions within each file by sequence and marker id.
     - List highlights the next unapplied evolution in each sequence.
+    - List treats immediately following comment lines as part of the same evolution description.
+    - List aligns continued evolution description lines with the description column.
     - List reports duplicate marker ids.
     - List reports malformed marker candidates.
     - List warns about scannable files that could not be read.
@@ -49,4 +51,13 @@ Feature: List ordered evolutions
     When the developer runs `probedev list`
     Then the system prints the readable evolution marker
     And the system prints an unreadable file warning
+    And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S006
+  Scenario: Multiline evolution markers keep aligned description text
+    Given a workspace with a multiline evolution marker
+    When the developer runs `probedev list`
+    Then the system prints the marker id and marker line number once
+    And the system prints all continuation lines as part of the same evolution
+    And the continuation lines are aligned with the evolution description column
     And the command succeeds.

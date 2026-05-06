@@ -26,7 +26,13 @@ class EvolutionListPresenter:
             lines.append(str(path))
             for evolution in evolutions:
                 prefix = "next" if next_by_sequence[sequence_name(evolution.marker)] == evolution else "    "
-                lines.append(f"  {prefix} {evolution.marker} line {evolution.line} {evolution.title}")
+                description_prefix = f"  {prefix} {evolution.marker} line {evolution.line} "
+                description_indent = " " * len(description_prefix)
+                for index, description_line in enumerate(evolution.description_lines):
+                    if index == 0:
+                        lines.append(f"{description_prefix}{description_line}")
+                    else:
+                        lines.append(f"{description_indent}{description_line}")
 
         # TODO(EVO-060): Group duplicate and malformed marker warnings by file once the main grouped list shape is accepted.
         for marker in plan.duplicate_markers():

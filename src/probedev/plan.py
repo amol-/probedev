@@ -21,6 +21,12 @@ class Evolution:
     title: str
     path: Path
     line: int
+    continuation_lines: tuple[str, ...] = ()
+
+    @property
+    def description_lines(self) -> tuple[str, ...]:
+        """Return the listable description lines for this evolution."""
+        return (self.title, *self.continuation_lines)
 
 
 @dataclass(frozen=True)
@@ -99,8 +105,10 @@ class ProbePlanParser:
                 continue
             except UnicodeDecodeError:
                 continue
-            for line_number, line in enumerate(lines, start=1):
-                self._append_marker(evolutions, malformed, path, line_number, line)
+            line_index = 0
+            while line_index < len(lines):
+                line_number = line_index + 1
+                line_index = self._append_marker(evolutions, malformed, path, line_number, lines, line_index)
         return ProbePlan(
             sorted(evolutions, key=lambda item: (sequence_name(item.marker), item.marker, str(item.path), item.line)),
             sorted(malformed, key=lambda item: (str(item.path), item.line)),
@@ -113,14 +121,44 @@ class ProbePlanParser:
         malformed: list[MalformedEvolution],
         path: Path,
         line_number: int,
-        line: str,
-    ) -> None:
+        lines: list[str],
+        line_index: int,
+    ) -> int:
+        line = lines[line_index]
         if not self._is_comment_marker_candidate(line):
-            return
+            return line_index + 1
         if match := TODO_RE.search(line):
-            evolutions.append(Evolution(match.group(1), match.group(2).strip(), path, line_number))
+            continuation_lines, next_index = self._collect_continuation_lines(lines, line_index + 1)
+            evolutions.append(Evolution(match.group(1), match.group(2).strip(), path, line_number, continuation_lines))
+            return next_index
         else:
             malformed.append(MalformedEvolution(line.strip(), path, line_number))
+            return line_index + 1
+
+    def _collect_continuation_lines(self, lines: list[str], start_index: int) -> tuple[tuple[str, ...], int]:
+        """Collect adjacent comment lines that complete one evolution description."""
+        continuation = []
+        line_index = start_index
+        while line_index < len(lines):
+            line = lines[line_index]
+            if self._is_comment_marker_candidate(line):
+                break
+            text = self._comment_text(line)
+            if text is None:
+                break
+            continuation.append(text)
+            line_index += 1
+        return tuple(continuation), line_index
+
+    def _comment_text(self, line: str) -> str | None:
+        stripped = line.lstrip()
+        for prefix in ("#", "//", "/*", "*", "<!--"):
+            if stripped.startswith(prefix):
+                text = stripped.removeprefix(prefix).strip()
+                # TODO(EVO-140): Replace heuristic continuation stripping with a shared
+                # comment-style table that covers each scannable source type.
+                return text.removesuffix("*/").removesuffix("-->").strip()
+        return None
 
     def _iter_scannable_files(self, root: Path, unreadable_paths: list[Path]) -> Iterable[Path]:
         def record_unreadable(error: OSError) -> None:
