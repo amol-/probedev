@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ import pytest
 
 import probedev.show
 from probedev.cli import Workspace, build_parser, main, run_show
+from probedev.plan import ProbePlanParser
 
 
 class TrackingOutput(StringIO):
@@ -110,6 +112,142 @@ def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
         "  next EVO-010 line 2 Add the first step.",
         "       EVO-020 line 1 Add the second step.",
     ]
+
+
+def test_probe_plan_skips_files_that_cannot_be_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    readable = tmp_path / "readable.py"
+    unreadable = tmp_path / "unreadable.py"
+    readable.write_text(f"# {marker}010): Keep scanning readable files.\n", encoding="utf-8")
+    unreadable.write_text(f"# {marker}020): This file cannot be read.\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == unreadable:
+            raise PermissionError("permission denied")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title) for evolution in plan.evolutions] == [
+        ("EVO-010", "Keep scanning readable files.")
+    ]
+    assert plan.unreadable_paths == [unreadable]
+
+
+def test_probe_list_warns_about_files_that_cannot_be_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    readable = tmp_path / "readable.py"
+    unreadable = tmp_path / "unreadable.py"
+    readable.write_text(f"# {marker}010): Keep scanning readable files.\n", encoding="utf-8")
+    unreadable.write_text(f"# {marker}020): This file cannot be read.\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == unreadable:
+            raise PermissionError("permission denied")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "next EVO-010 line 1 Keep scanning readable files." in output
+    assert "warn UNREADABLE unreadable.py skipped during plan scan" in output
+
+
+def test_probe_plan_records_files_that_cannot_be_checked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    readable = tmp_path / "readable.py"
+    unreadable = tmp_path / "unreadable.py"
+    readable.write_text(f"# {marker}010): Keep scanning readable files.\n", encoding="utf-8")
+    unreadable.write_text(f"# {marker}020): This file cannot be checked.\n", encoding="utf-8")
+    original_is_file = Path.is_file
+
+    def fake_is_file(path: Path) -> bool:
+        if path == unreadable:
+            raise PermissionError("permission denied")
+        return original_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", fake_is_file)
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title) for evolution in plan.evolutions] == [
+        ("EVO-010", "Keep scanning readable files.")
+    ]
+    assert plan.unreadable_paths == [unreadable]
+
+
+def test_probe_add_refuses_to_allocate_from_incomplete_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    target = tmp_path / "readable.py"
+    unreadable = tmp_path / "unreadable.py"
+    target.write_text(f"# {marker}010): Existing visible step.\n", encoding="utf-8")
+    unreadable.write_text(f"# {marker}020): Existing hidden step.\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def fake_read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == unreadable:
+            raise PermissionError("permission denied")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    exit_code = main(["--root", str(tmp_path), "add", "readable.py", "Must not allocate duplicate id."])
+
+    assert exit_code == 1
+    assert capsys.readouterr().out == (
+        "Could not add evolution: plan scan skipped unreadable files; fix file access and try again.\n"
+    )
+    assert target.read_text(encoding="utf-8") == "# TODO(EVO-010): Existing visible step.\n"
+
+
+def test_probe_add_refuses_to_allocate_when_directory_scan_is_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    target = tmp_path / "readable.py"
+    blocked = tmp_path / "blocked"
+    target.write_text(f"# {marker}010): Existing visible step.\n", encoding="utf-8")
+    blocked.mkdir()
+    original_walk = os.walk
+
+    def fake_walk(path: Path, *args: Any, **kwargs: Any):
+        onerror = kwargs.get("onerror")
+        if onerror:
+            onerror(PermissionError(13, "permission denied", str(blocked)))
+        yield from original_walk(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    exit_code = main(["--root", str(tmp_path), "add", "readable.py", "Must not allocate hidden id."])
+
+    assert exit_code == 1
+    assert capsys.readouterr().out == (
+        "Could not add evolution: plan scan skipped unreadable files; fix file access and try again.\n"
+    )
+    assert target.read_text(encoding="utf-8") == "# TODO(EVO-010): Existing visible step.\n"
 
 
 def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, capsys) -> None:

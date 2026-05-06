@@ -11,6 +11,7 @@ Feature: List ordered evolutions
     - List highlights the next unapplied evolution in each sequence.
     - List reports duplicate marker ids.
     - List reports malformed marker candidates.
+    - List warns about scannable files that could not be read.
     - Markdown and ignored workspace directories are not part of the active plan scan.
 
   @id:F-COMMANDS-LIST-S001
@@ -41,3 +42,11 @@ Feature: List ordered evolutions
     When the developer runs `probedev list`
     Then the system reports that no probe evolutions were found
     And the command fails.
+
+  @id:F-COMMANDS-LIST-S005
+  Scenario: Unreadable source files are reported without stopping list
+    Given a workspace with a readable marker and an unreadable source file
+    When the developer runs `probedev list`
+    Then the system prints the readable evolution marker
+    And the system prints an unreadable file warning
+    And the command succeeds.

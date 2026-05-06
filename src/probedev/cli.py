@@ -105,6 +105,10 @@ def run_add(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
     :param TextIO out: Output stream for command text.
     """
     plan = workspace.read_probe_plan()
+    if plan.unreadable_paths:
+        out.write("Could not add evolution: plan scan skipped unreadable files; fix file access and try again.\n")
+        return EXIT_FAILURE
+
     try:
         recorded = EvolutionRecorder().record(
             workspace.root,
@@ -150,7 +154,7 @@ def run_list(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> in
     :param TextIO out: Output stream for command text.
     """
     plan = workspace.read_probe_plan()
-    if not plan.evolutions and not plan.malformed:
+    if not plan.evolutions and not plan.malformed and not plan.unreadable_paths:
         out.write("No TODO(EVO-...) evolutions found.\n")
         return EXIT_FAILURE
 

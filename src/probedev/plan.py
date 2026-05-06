@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,7 @@ class ProbePlan:
 
     evolutions: list[Evolution]
     malformed: list[MalformedEvolution]
+    unreadable_paths: list[Path]
 
     @property
     def sequence_names(self) -> set[str]:
@@ -88,10 +90,13 @@ class ProbePlanParser:
         """
         evolutions = []
         malformed = []
-        for path in self._iter_scannable_files(root):
+        unreadable_paths = []
+        for path in self._iter_scannable_files(root, unreadable_paths):
             try:
-                # TODO(EVO-050): Skip permission-denied or inaccessible files instead of crashing during plan scans.
                 lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                unreadable_paths.append(path)
+                continue
             except UnicodeDecodeError:
                 continue
             for line_number, line in enumerate(lines, start=1):
@@ -99,6 +104,7 @@ class ProbePlanParser:
         return ProbePlan(
             sorted(evolutions, key=lambda item: (sequence_name(item.marker), item.marker, str(item.path), item.line)),
             sorted(malformed, key=lambda item: (str(item.path), item.line)),
+            sorted(unreadable_paths),
         )
 
     def _append_marker(
@@ -116,12 +122,23 @@ class ProbePlanParser:
         else:
             malformed.append(MalformedEvolution(line.strip(), path, line_number))
 
-    def _iter_scannable_files(self, root: Path) -> Iterable[Path]:
-        for path in root.rglob("*"):
-            if any(part in SKIPPED_DIRS for part in path.parts):
-                continue
-            if path.is_file() and path.suffix not in SKIPPED_SUFFIXES:
-                yield path
+    def _iter_scannable_files(self, root: Path, unreadable_paths: list[Path]) -> Iterable[Path]:
+        def record_unreadable(error: OSError) -> None:
+            if error.filename:
+                unreadable_paths.append(Path(error.filename))
+
+        for directory, dir_names, file_names in os.walk(root, onerror=record_unreadable):
+            dir_names[:] = [name for name in dir_names if name not in SKIPPED_DIRS]
+            directory_path = Path(directory)
+            for file_name in file_names:
+                path = directory_path / file_name
+                if path.suffix in SKIPPED_SUFFIXES:
+                    continue
+                try:
+                    if path.is_file():
+                        yield path
+                except OSError:
+                    unreadable_paths.append(path)
 
     def _is_comment_marker_candidate(self, line: str) -> bool:
         stripped = line.lstrip()

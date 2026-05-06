@@ -9,6 +9,7 @@ Feature: Add an evolution
     - Add records the requested description without applying the evolution.
     - Add appends the marker at the end of the requested file.
     - Add keeps the resulting marker visible to list.
+    - Add refuses to allocate an id when the plan scan skipped unreadable source files.
 
   @id:F-COMMANDS-ADD-S001
   Scenario: Add records the next evolution
@@ -35,3 +36,11 @@ Feature: Add an evolution
     When the developer runs `probedev add` with a target file and new evolution description
     Then the marker is written to the requested path
     And the command succeeds.
+
+  @id:F-COMMANDS-ADD-S004
+  Scenario: Add refuses to write when plan scan is incomplete
+    Given a workspace with a readable marker and an unreadable source file
+    When the developer runs `probedev add` with a file and new evolution description
+    Then the system reports that add could not scan the complete plan
+    And no new marker is appended to the requested file
+    And the command fails.

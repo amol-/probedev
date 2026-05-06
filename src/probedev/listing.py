@@ -34,6 +34,8 @@ class EvolutionListPresenter:
         for item in plan.malformed:
             location = f"{item.path.relative_to(root)}:{item.line}"
             lines.append(f"warn MALFORMED {location} {item.text.strip()}")
+        for path in plan.unreadable_paths:
+            lines.append(f"warn UNREADABLE {path.relative_to(root)} skipped during plan scan")
         # TODO(EVO-070): Add explicit coverage for ignored directories and Markdown exclusions in grouped list output.
         return lines
 

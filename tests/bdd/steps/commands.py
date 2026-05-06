@@ -96,6 +96,25 @@ def workspace_with_duplicate_markers(command_context: CommandContext, marker_pre
     )
 
 
+@given("a workspace with a readable marker and an unreadable source file")
+def workspace_with_unreadable_source(
+    command_context: CommandContext,
+    marker_prefix: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unreadable = command_context.root / "unreadable.py"
+    write_source(command_context.root, f"# {marker_prefix}010): Existing visible step.\n")
+    write_source(command_context.root, f"# {marker_prefix}020): Existing hidden step.\n", "unreadable.py")
+    original_read_text = Path.read_text
+
+    def fake_read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == unreadable:
+            raise PermissionError("permission denied")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+
 @given("a workspace with pending evolutions that have no ids")
 def workspace_with_missing_evolution_ids(command_context: CommandContext) -> None:
     write_source(
@@ -431,9 +450,31 @@ def assert_duplicate_warning(command_context: CommandContext) -> None:
     assert "warn DUPLICATE EVO-010" in command_context.output
 
 
+@then("the system prints the readable evolution marker")
+def assert_readable_marker_listed(command_context: CommandContext) -> None:
+    assert "next EVO-010 line 1 Existing visible step." in command_context.output
+
+
+@then("the system prints an unreadable file warning")
+def assert_unreadable_warning(command_context: CommandContext) -> None:
+    assert "warn UNREADABLE unreadable.py skipped during plan scan" in command_context.output
+
+
 @then("the system reports that no probe evolutions were found")
 def assert_no_probe_evolutions(command_context: CommandContext) -> None:
     assert "No TODO(EVO-...) evolutions found" in command_context.output
+
+
+@then("the system reports that add could not scan the complete plan")
+def assert_add_reports_incomplete_plan(command_context: CommandContext) -> None:
+    assert "Could not add evolution: plan scan skipped unreadable files" in command_context.output
+
+
+@then("no new marker is appended to the requested file")
+def assert_no_marker_appended(command_context: CommandContext) -> None:
+    assert (command_context.root / "tool.py").read_text(encoding="utf-8") == (
+        "# TODO(EVO-010): Existing visible step.\n"
+    )
 
 
 @then("the system assigns the first evolution id")
