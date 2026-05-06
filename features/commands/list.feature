@@ -13,7 +13,7 @@ Feature: List ordered evolutions
   @id:F-COMMANDS-LIST-S001
   Scenario: Ordered markers are printed with the next marker highlighted
     Given a workspace with multiple ordered probe markers
-    When the developer runs `probe list`
+    When the developer runs `probedev list`
     Then the system prints the ordered probe plan
     And the first marker in the sequence is marked as next
     And each marker includes its file location and title.
@@ -21,13 +21,13 @@ Feature: List ordered evolutions
   @id:F-COMMANDS-LIST-S002
   Scenario: Malformed marker candidates are reported
     Given a workspace with a malformed probe marker candidate
-    When the developer runs `probe list`
+    When the developer runs `probedev list`
     Then the system prints a malformed marker warning
     And the command succeeds.
 
   @id:F-COMMANDS-LIST-S003
   Scenario: No markers fails list
     Given a workspace with no probe evolution markers
-    When the developer runs `probe list`
+    When the developer runs `probedev list`
     Then the system reports that no probe evolutions were found
     And the command fails.

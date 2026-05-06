@@ -15,7 +15,7 @@ test = [
 ]
 
 [project.scripts]
-probe = "probedev.cli:main"
+probedev = "probedev.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -36,7 +36,7 @@ class Workspace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the probe command line interface.
+    """Run the probedev command line interface.
 
     :param list[str] argv: Command arguments without the executable name.
     """
@@ -48,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the supported probe commands."""
-    parser = argparse.ArgumentParser(prog="probe")
+    parser = argparse.ArgumentParser(prog="probedev")
     parser.add_argument("--root", default=".", help="project root to inspect")
     subcommands = parser.add_subparsers(required=True)
 
@@ -106,7 +106,7 @@ def run_refine(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> i
     """
     intent = workspace.read_intent()
     if not intent:
-        out.write("No README.md intent found. Run probe discuss after adding intent.\n")
+        out.write("No README.md intent found. Run probedev discuss after adding intent.\n")
         return EXIT_FAILURE
 
     plan = workspace.read_probe_plan()
@@ -125,7 +125,7 @@ def run_refine(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> i
         out.write(f"- marker: {recorded.marker}\n")
         out.write(f"- title: {recorded.title}\n")
         out.write(f"- location: {recorded.path.relative_to(workspace.root)}:{recorded.line}\n")
-        out.write(f"Run probe evolve {recorded.marker} when you are ready to apply it.\n")
+        out.write(f"Run probedev evolve {recorded.marker} when you are ready to apply it.\n")
         return EXIT_SUCCESS
 
     out.write("Use the real project entrypoint and keep the probe executable.\n")

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from probedev.cli import main
+from probedev.cli import build_parser, main
 
 
 @pytest.fixture
@@ -17,6 +17,24 @@ def project_root(tmp_path: Path) -> Path:
     source = tmp_path / "tool.py"
     source.write_text(f"# {marker}010): Add the first step.\n", encoding="utf-8")
     return tmp_path
+
+
+def test_help_uses_probedev_program_name(capsys) -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--help"])
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out.splitlines()[0].startswith("usage: probedev")
+
+
+def test_package_installs_probedev_command() -> None:
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    content = pyproject.read_text(encoding="utf-8")
+
+    assert 'probedev = "probedev.cli:main"' in content
+    assert 'probe = "probedev.cli:main"' not in content
 
 
 def test_probe_list_discovers_non_python_source_markers(tmp_path: Path, capsys) -> None:
@@ -178,6 +196,7 @@ def test_probe_refine_records_new_evolution_without_applying_it(project_root: Pa
     assert "Recorded evolution" in output
     assert "- marker: PROBE-020" in output
     assert "- title: Add README-aware refinement." in output
+    assert "Run probedev evolve PROBE-020" in output
     assert "TODO(PROBE-020): Add README-aware refinement." in (project_root / "tool.py").read_text(encoding="utf-8")
 
 

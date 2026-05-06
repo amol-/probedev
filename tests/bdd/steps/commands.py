@@ -130,43 +130,43 @@ def workspace_has_ordered_evolution_markers(command_context: CommandContext, mar
     write_source(command_context.root, f"# {marker_prefix}010): Add the first step.\n")
 
 
-@when("the developer runs `probe discuss`")
+@when("the developer runs `probedev discuss`")
 def run_discuss(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["discuss"])
 
 
-@when("the developer runs `probe refine`")
+@when("the developer runs `probedev refine`")
 def run_refine(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["refine"])
 
 
-@when("the developer runs `probe refine` with a new evolution title")
+@when("the developer runs `probedev refine` with a new evolution title")
 def run_refine_with_title(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["refine", "Add README-aware refinement."])
 
 
-@when("the developer runs `probe challenge`")
+@when("the developer runs `probedev challenge`")
 def run_challenge(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["challenge"])
 
 
-@when("the developer runs `probe list`")
+@when("the developer runs `probedev list`")
 def run_list(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["list"])
 
 
-@when("the developer runs `probe evolve`")
-@when("the developer runs `probe evolve` without a marker id")
+@when("the developer runs `probedev evolve`")
+@when("the developer runs `probedev evolve` without a marker id")
 def run_evolve(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["evolve"])
 
 
-@when("the developer runs `probe evolve` with one marker id")
+@when("the developer runs `probedev evolve` with one marker id")
 def run_evolve_with_marker(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["evolve", "PROBE-SHARING-010"])
 
 
-@when("the developer runs `probe evolve` with an unknown marker id")
+@when("the developer runs `probedev evolve` with an unknown marker id")
 def run_evolve_with_unknown_marker(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["evolve", "PROBE-999"])
 
@@ -222,7 +222,7 @@ def assert_refine_records_marker(command_context: CommandContext) -> None:
     assert "- title: Add README-aware refinement." in command_context.output
 
 
-@then("the marker is visible to `probe list`")
+@then("the marker is visible to `probedev list`")
 def assert_recorded_marker_is_listed(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = main(["--root", str(command_context.root), "list"])
     output = capsys.readouterr().out

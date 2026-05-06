@@ -172,19 +172,19 @@ TODO(PROBE-SHARING-010): Add share link model.
 
 ### Command Rules
 
-- `probe discuss` changes README intent.
-- `probe refine` changes executable architecture and the evolution plan.
-- `probe challenge` reviews README, code, and evolutions without editing by default.
-- `probe list` reads the ordered plan from code.
-- `probe evolve` applies one evolution.
+- `probedev discuss` changes README intent.
+- `probedev refine` changes executable architecture and the evolution plan.
+- `probedev challenge` reviews README, code, and evolutions without editing by default.
+- `probedev list` reads the ordered plan from code.
+- `probedev evolve` applies one evolution.
 
-Keep this separation strict. Refinement changes the plan. `probe evolve` applies the plan one evolution at a time.
+Keep this separation strict. Refinement changes the plan. `probedev evolve` applies the plan one evolution at a time.
 
 ## Optional BDD Integration
 
 Probe-Driven Development works without BDD. BDD is optional.
 
-When BDD is useful, it should be introduced during `probe evolve`, not before the architectural probe exists.
+When BDD is useful, it should be introduced during `probedev evolve`, not before the architectural probe exists.
 
 The probe discovers where behavior belongs in the software. BDD describes the user-observable behavior that one selected evolution must satisfy.
 
@@ -192,7 +192,7 @@ The probe discovers where behavior belongs in the software. BDD describes the us
 
 Writing feature files before the probe can force behavior language, nouns, workflows, and boundaries too early.
 
-First use `probe refine` to create or evolve the executable architecture. Then, when applying a specific evolution, define the BDD feature for that evolution's behavior.
+First use `probedev refine` to create or evolve the executable architecture. Then, when applying a specific evolution, define the BDD feature for that evolution's behavior.
 
 This keeps the responsibilities separate:
 
@@ -202,9 +202,9 @@ This keeps the responsibilities separate:
 - BDD feature files describe user-observable behavior for a selected step
 - implementation makes that selected behavior pass
 
-### BDD During `probe evolve`
+### BDD During `probedev evolve`
 
-When applying an evolution that has user-observable behavior, `probe evolve` may:
+When applying an evolution that has user-observable behavior, `probedev evolve` may:
 
 - inspect the selected evolution and its surrounding code context
 - create or update the smallest relevant feature file
@@ -240,7 +240,7 @@ Keep the link simple and searchable. The evolution remains the project-plan unit
 
 ### BDD Challenge Checks
 
-When BDD is used, `probe challenge` should also check:
+When BDD is used, `probedev challenge` should also check:
 
 - each user-observable evolution has a linked feature file
 - linked feature files match README intent
@@ -308,7 +308,7 @@ Address this by keeping the README short but meaningful, and by challenging the 
 
 ### Agents May Overbuild
 
-Address this by separating `probe refine` from `probe evolve`, and by applying one evolution at a time.
+Address this by separating `probedev refine` from `probedev evolve`, and by applying one evolution at a time.
 
 ### One Ordered List May Not Fit Every Project
 

@@ -13,7 +13,7 @@ Feature: Challenge the probe plan
   Scenario: Missing intent and malformed markers are reported
     Given a workspace without README intent
     And the workspace contains a malformed probe marker
-    When the developer runs `probe challenge`
+    When the developer runs `probedev challenge`
     Then the system prints challenge findings
     And the findings include missing README intent
     And the findings include the malformed marker location
@@ -22,7 +22,7 @@ Feature: Challenge the probe plan
   @id:F-COMMANDS-CHALLENGE-S002
   Scenario: Duplicate markers are reported
     Given a workspace with duplicate probe markers
-    When the developer runs `probe challenge`
+    When the developer runs `probedev challenge`
     Then the system prints challenge findings
     And the findings include the duplicate marker id
     And the command fails.
@@ -32,6 +32,6 @@ Feature: Challenge the probe plan
     Given a workspace with README intent
     And the workspace has the process reference
     And the workspace has ordered evolution markers
-    When the developer runs `probe challenge`
+    When the developer runs `probedev challenge`
     Then the system reports that the baseline probe materials are present
     And the command succeeds.

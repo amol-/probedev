@@ -11,13 +11,13 @@ Feature: Discuss README intent
   @id:F-COMMANDS-DISCUSS-S001
   Scenario: Existing README intent produces product questions
     Given a workspace with README intent
-    When the developer runs `probe discuss`
+    When the developer runs `probedev discuss`
     Then the system reports the README being discussed
     And the system prints questions about users, workflows, scope, and completion.
 
   @id:F-COMMANDS-DISCUSS-S002
   Scenario: Missing README intent blocks discussion
     Given a workspace without README intent
-    When the developer runs `probe discuss`
+    When the developer runs `probedev discuss`
     Then the system reports that no README was found
     And the command fails.

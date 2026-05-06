@@ -12,14 +12,14 @@ Feature: Refine an architectural probe
   @id:F-COMMANDS-REFINE-S001
   Scenario: README intent produces a refinement target
     Given a workspace with README intent
-    When the developer runs `probe refine`
+    When the developer runs `probedev refine`
     Then the system reports the refinement target
     And the system includes the intent file, process file, and active evolution count.
 
   @id:F-COMMANDS-REFINE-S002
   Scenario: Missing README intent blocks refinement
     Given a workspace without README intent
-    When the developer runs `probe refine`
+    When the developer runs `probedev refine`
     Then the system tells the developer to add intent before refinement
     And the command fails.
 
@@ -27,7 +27,7 @@ Feature: Refine an architectural probe
   Scenario: Refinement records one requested evolution
     Given a workspace with README intent
     And the workspace has ordered evolution markers
-    When the developer runs `probe refine` with a new evolution title
+    When the developer runs `probedev refine` with a new evolution title
     Then the system records a new evolution marker
-    And the marker is visible to `probe list`
+    And the marker is visible to `probedev list`
     And the command succeeds.

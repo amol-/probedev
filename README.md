@@ -34,7 +34,7 @@ Implementation progress is tracked by probe evolutions by referencing stable fea
 
 ## Commands
 
-### `probe discuss`
+### `probedev discuss`
 
 Challenge and improve the README description.
 
@@ -45,7 +45,7 @@ Expected outcome:
 - a clearer README-level software description
 - no code changes unless the user explicitly asks to continue into a probe
 
-### `probe refine`
+### `probedev refine`
 
 Create or evolve an architectural probe.
 
@@ -65,7 +65,7 @@ Expected outcome:
 - ordered evolutions for the remaining plan, each anchored by a `TODO(PROBE-...)` marker
 - no detached architecture document
 
-### `probe challenge`
+### `probedev challenge`
 
 Challenge the current probe plan against the README.
 
@@ -73,10 +73,10 @@ This command compares product intent, executable code, and ordered evolutions. I
 
 Expected outcome:
 
-- suggested `probe refine` steps
+- suggested `probedev refine` steps
 - no code changes by default
 
-### `probe list`
+### `probedev list`
 
 List the ordered probe plan.
 
@@ -88,7 +88,7 @@ Expected outcome:
 - current first unapplied evolution highlighted
 - warnings for malformed IDs, duplicate IDs, or confusing sequence structure
 
-### `probe evolve`
+### `probedev evolve`
 
 Apply one ordered evolution.
 
@@ -139,7 +139,7 @@ The toolkit must preserve these requirements:
 - probes are executable
 - probes live inside the real codebase
 - evolutions are ordered
-- `probe refine` changes the plan
-- `probe evolve` applies the plan one evolution at a time
+- `probedev refine` changes the plan
+- `probedev evolve` applies the plan one evolution at a time
 - every command keeps the workflow reviewable in minutes
 - completion means no `TODO(PROBE-...)` markers remain for the current agreed scope

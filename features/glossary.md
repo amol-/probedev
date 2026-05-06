@@ -13,4 +13,4 @@ Canonical product vocabulary used by the feature files.
 - Probe plan: Ordered set of active evolutions discovered from code.
 - Refinement: Creation or evolution of executable probe code and its ordered evolution plan.
 - System: The Probe Development Toolkit described by this repository.
-- Workspace: Project root inspected by the `probe` command.
+- Workspace: Project root inspected by the `probedev` command.
