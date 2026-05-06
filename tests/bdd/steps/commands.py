@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import shlex
+from typing import Any
 
 import pytest
 from pytest_bdd import given, then, when
 
 from probedev.cli import main
+import probedev.show
 
 
 @dataclass
@@ -21,6 +24,7 @@ class CommandContext:
     root: Path
     exit_code: int | None = None
     output: str = ""
+    editor_calls: list[list[str]] | None = None
 
 
 @pytest.fixture
@@ -131,6 +135,19 @@ def workspace_with_duplicate_evolution_ids(command_context: CommandContext) -> N
     )
 
 
+@given("a workspace with ordered evolution markers")
+def workspace_with_ordered_evolution_markers(command_context: CommandContext) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                "# TODO(EVO-010): Add the first step.",
+                "# TODO(EVO-020): Add the second step.",
+            ]
+        ),
+    )
+
+
 @given("a workspace with only valid unique evolution ids")
 def workspace_with_valid_unique_evolution_ids(command_context: CommandContext) -> None:
     write_source(command_context.root, "# TODO(EVO-010): Keep this valid marker.\n")
@@ -139,6 +156,43 @@ def workspace_with_valid_unique_evolution_ids(command_context: CommandContext) -
 @given("the workspace has ordered evolution markers")
 def workspace_has_ordered_evolution_markers(command_context: CommandContext, marker_prefix: str) -> None:
     write_source(command_context.root, f"# {marker_prefix}010): Add the first step.\n")
+
+
+@given("the developer has a configured code editor")
+def developer_has_code_editor(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    install_editor_spy(command_context, monkeypatch)
+    monkeypatch.setenv("CODE_EDITOR", "code")
+    monkeypatch.delenv("EDITOR", raising=False)
+
+
+@given("the developer has both `CODE_EDITOR` and `EDITOR` configured")
+def developer_has_both_editors(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    install_editor_spy(command_context, monkeypatch)
+    monkeypatch.setenv("CODE_EDITOR", "code")
+    monkeypatch.setenv("EDITOR", "vim")
+
+
+@given("the developer has `EDITOR` configured")
+def developer_has_editor(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    install_editor_spy(command_context, monkeypatch)
+    monkeypatch.setenv("EDITOR", "vim")
+
+
+@given("the developer does not have `CODE_EDITOR` configured")
+def developer_has_no_code_editor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODE_EDITOR", raising=False)
+
+
+@given("the developer has no configured editor")
+def developer_has_no_configured_editor(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    install_editor_spy(command_context, monkeypatch)
+    monkeypatch.delenv("CODE_EDITOR", raising=False)
+    monkeypatch.delenv("EDITOR", raising=False)
+
+
+@given("the workspace has an available default editor")
+def workspace_has_default_editor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(probedev.show.shutil, "which", lambda editor: "/usr/bin/vim" if editor == "vim" else None)
 
 
 @when("the developer runs `probedev list`")
@@ -161,6 +215,36 @@ def run_identify(command_context: CommandContext, capsys: pytest.CaptureFixture[
     run_probe(command_context, capsys, ["identify"])
 
 
+@when("the developer runs `probedev show EVO-020`")
+def run_show_existing_evolution(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["show", "EVO-020"])
+
+
+@when("the developer runs `probedev show EVO-999`")
+def run_show_missing_evolution(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["show", "EVO-999"])
+
+
+@when("the developer runs `probedev show EVO-010`")
+def run_show_duplicate_evolution(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["show", "EVO-010"])
+
+
+@when("the developer runs `probedev show EVO`")
+def run_show_invalid_evolution(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["show", "EVO"])
+
+
+def install_editor_spy(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    command_context.editor_calls = []
+
+    def fake_run(argv: list[str], **_kwargs: Any) -> None:
+        assert command_context.editor_calls is not None
+        command_context.editor_calls.append(argv)
+
+    monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
+
+
 def run_probe(
     command_context: CommandContext,
     capsys: pytest.CaptureFixture[str],
@@ -168,6 +252,70 @@ def run_probe(
 ) -> None:
     command_context.exit_code = main(["--root", str(command_context.root), *args])
     command_context.output = capsys.readouterr().out
+
+
+@then("the system opens the configured editor at the file containing `EVO-020`")
+def assert_configured_editor_opened(command_context: CommandContext) -> None:
+    assert_editor_opened(command_context)
+
+
+@then("the system opens `CODE_EDITOR` at the file containing `EVO-020`")
+def assert_code_editor_opened(command_context: CommandContext) -> None:
+    argv = assert_editor_opened(command_context)
+    assert argv[0] == "code"
+
+
+@then("the system opens `EDITOR` at the file containing `EVO-020`")
+def assert_editor_opened_from_editor(command_context: CommandContext) -> None:
+    argv = assert_editor_opened(command_context)
+    assert argv[0] == "vim"
+
+
+@then("the system opens the available default editor at the file containing `EVO-020`")
+def assert_default_editor_opened(command_context: CommandContext) -> None:
+    argv = assert_editor_opened(command_context)
+    assert argv[0] == "/usr/bin/vim"
+
+
+@then("the editor is positioned on the `EVO-020` marker line")
+def assert_editor_positioned_on_marker_line(command_context: CommandContext) -> None:
+    argv = assert_editor_opened(command_context)
+    assert any(str(command_context.root / "tool.py") in arg for arg in argv)
+    assert any(":2" in arg or arg == "+2" for arg in argv)
+
+
+@then("the system reports the selected editor command")
+def assert_selected_editor_command_reported(command_context: CommandContext) -> None:
+    argv = assert_editor_opened(command_context)
+    assert "Opening evolution" in command_context.output
+    assert f"- editor: {shlex.join(argv)}" in command_context.output
+    assert "Opened evolution" not in command_context.output
+
+
+@then("the system reports that `EVO-999` was not found")
+def assert_missing_evolution_reported(command_context: CommandContext) -> None:
+    assert "Evolution EVO-999 was not found" in command_context.output
+
+
+@then("the system reports that `EVO-010` is ambiguous")
+def assert_ambiguous_evolution_reported(command_context: CommandContext) -> None:
+    assert "Evolution EVO-010 is ambiguous" in command_context.output
+
+
+@then("the system reports that the requested evolution id is invalid")
+def assert_invalid_evolution_reported(command_context: CommandContext) -> None:
+    assert "Invalid evolution id: EVO" in command_context.output
+
+
+@then("no editor is opened")
+def assert_no_editor_opened(command_context: CommandContext) -> None:
+    assert command_context.editor_calls in (None, [])
+
+
+def assert_editor_opened(command_context: CommandContext) -> list[str]:
+    assert command_context.editor_calls is not None
+    assert len(command_context.editor_calls) == 1
+    return command_context.editor_calls[0]
 
 
 @then("the system records a new evolution marker")

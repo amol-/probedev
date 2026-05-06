@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,7 @@ from probedev.evolutions import AddEvolutionRequest, EvolutionRecorder
 from probedev.identification import EvolutionIdentifier
 from probedev.listing import EvolutionListPresenter
 from probedev.plan import ProbePlan, ProbePlanParser
+from probedev.show import EvolutionShower
 
 
 EXIT_SUCCESS = 0
@@ -54,11 +56,45 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_command("list", "list ordered TODO(EVO-...) evolutions", run_list)
     add_command("identify", "assign unique EVO ids to pending evolutions", run_identify)
+    show = add_command("show", "open one evolution marker in an editor", run_show)
+    show.add_argument("marker", help="evolution id to open, such as EVO-010")
     add = add_command("add", "add one ordered evolution marker", run_add)
     add.add_argument("path", type=Path, help="source file where the evolution marker belongs")
     add.add_argument("description", nargs="+", help="evolution description to record")
 
     return parser
+
+
+def run_show(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
+    """Open one pending evolution in the configured editor.
+
+    :param argparse.Namespace args: Parsed command arguments.
+    :param Workspace workspace: Project workspace to inspect.
+    :param TextIO out: Output stream for command text.
+    """
+    plan = workspace.read_probe_plan()
+
+    try:
+        shower = EvolutionShower()
+        result = shower.prepare(plan, args.marker)
+        out.write("Opening evolution\n")
+        out.write(f"- marker: {result.evolution.marker}\n")
+        out.write(f"- editor: {shlex.join(result.command.argv)}\n")
+        out.write(f"- location: {result.evolution.path.relative_to(workspace.root)}:{result.evolution.line}\n")
+        out.flush()
+        shower.launch(result)
+    except ValueError as exc:
+        out.write(f"Could not show evolution: {exc}\n")
+        return EXIT_FAILURE
+    except LookupError as exc:
+        out.write(f"Could not show evolution: {exc}\n")
+        return EXIT_FAILURE
+    except RuntimeError as exc:
+        out.write(f"Could not show evolution: {exc}\n")
+        return EXIT_FAILURE
+
+    # TODO(EVO-140): Decide whether show should stay quiet on success once editor launch failures are surfaced.
+    return EXIT_SUCCESS
 
 
 def run_add(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:

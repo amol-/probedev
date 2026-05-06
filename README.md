@@ -19,6 +19,7 @@ The toolkit gives developers and agents a deterministic view of the code-local p
 - list the ordered implementation plan from code
 - add a new ordered evolution with a unique ID
 - identify pending evolutions that do not have valid unique IDs
+- open the source location for a specific evolution ID
 
 The toolkit exists to keep the project-management state inside the codebase. Agent-shaped activities such as discussion, challenge, refinement, and applying evolutions belong in coding agents that can read and edit the project with judgment.
 
@@ -38,11 +39,30 @@ List the ordered probe plan.
 
 This command scans the codebase for `TODO(EVO-...)` markers and prints pending evolutions grouped by source file.
 
-Expected outcome:
-
-- pending evolutions grouped by file
-- current first unapplied evolution highlighted
-- warnings for malformed IDs or duplicate IDs
+```bash
+% probedev list
+Pending evolutions
+src/probedev/cli.py
+       EVO-140 line 90 Decide whether show should stay quiet on success once editor launch failures are surfaced.
+src/probedev/evolutions.py
+  next EVO-010 line 52 Extract id allocation into a component that rejects duplicate default-sequence markers before choosing the next id.
+       EVO-020 line 69 Confirm whether add should create missing files or require the target file to already exist.
+       EVO-030 line 79 Preserve original file newline style and write atomically once the append boundary graduates from probe to production.
+       EVO-040 line 87 Replace suffix guessing with a small language comment-style table that covers every scannable source type.
+src/probedev/identification.py
+       EVO-080 line 79 Split candidate scanning into a shared parser so list and identify agree on every marker candidate shape.
+       EVO-090 line 80 Preserve file newline style and permissions when identify rewrites source files.
+       EVO-100 line 81 Report unchanged valid markers and rewritten conflicts separately for clearer command output.
+src/probedev/listing.py
+       EVO-060 line 31 Group duplicate and malformed marker warnings by file once the main grouped list shape is accepted.
+       EVO-070 line 37 Add explicit coverage for ignored directories and Markdown exclusions in grouped list output.
+src/probedev/plan.py
+       EVO-050 line 93 Skip permission-denied or inaccessible files instead of crashing during plan scans.
+src/probedev/show.py
+       EVO-110 line 60 Surface editor launch failures as a failed show command with the attempted command line.
+       EVO-120 line 82 Add platform-specific default editor discovery and a user-facing setup hint when none is available.
+       EVO-130 line 106 Support line-number argument templates for configured editors outside the initial code/vim family.
+```
 
 ### `probedev add`
 
@@ -50,12 +70,14 @@ Add one ordered evolution to the code-local probe plan.
 
 This command records a `TODO(EVO-...)` marker without applying the work. It requires a source file and an evolution description, assigns the next unique ID in the default sequence, and appends the marker to the end of the requested file.
 
-Expected outcome:
-
-- a new ordered evolution marker
-- a unique ID chosen by the tool
-- marker placement at the end of the requested file
-- the probe plan remains ordered and reviewable
+```bash
+% probedev add src/probedev/show.py when opening an evolution with editor it should print what editor is going to use
+Added evolution
+- marker: EVO-150
+- description: when opening an evolution with editor it should print what editor is going to use
+- location: src/probedev/show.py:109
+Run probedev list to review the ordered plan.
+```
 
 ### `probedev identify`
 
@@ -68,6 +90,20 @@ Expected outcome:
 - every pending evolution has a valid unique `EVO-XXX` ID
 - existing valid unique IDs are left unchanged
 - identified evolutions remain visible through `probedev list`
+
+### `probedev show`
+
+Open one pending evolution in an editor.
+
+This command receives an `EVO-XXX` ID, finds the matching `TODO(EVO-...)` marker, and opens the configured editor at that source file and line.
+
+```bash
+% probedev show EVO-050
+Opening evolution
+- marker: EVO-050
+- editor: /usr/local/bin/code --goto /Users/amol/src/probedev/src/probedev/plan.py:93
+- location: src/probedev/plan.py:93
+```
 
 ## TODO Syntax
 
@@ -103,5 +139,6 @@ The toolkit must preserve these requirements:
 - `probedev list` reads the plan from code
 - `probedev add` records one new planned evolution
 - `probedev identify` assigns valid unique IDs to existing planned evolutions
+- `probedev show` opens the file and line for one planned evolution
 - coding agents perform nondeterministic workflow actions such as discussion, challenge, refinement, and applying evolutions
 - completion means no `TODO(EVO-...)` markers remain for the current agreed scope

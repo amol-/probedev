@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+import argparse
+from io import StringIO
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from probedev.cli import build_parser, main
+import probedev.show
+from probedev.cli import Workspace, build_parser, main, run_show
+
+
+class TrackingOutput(StringIO):
+    """Output stream that records whether CLI output was flushed."""
+
+    flushed = False
+
+    def flush(self) -> None:
+        self.flushed = True
+        super().flush()
 
 
 @pytest.fixture
@@ -144,3 +158,45 @@ def test_probe_add_records_first_evolution_when_plan_is_empty(tmp_path: Path, ca
     assert exit_code == 0
     assert "- marker: EVO-010" in capsys.readouterr().out
     assert (tmp_path / "src" / "tool.py").read_text(encoding="utf-8") == "# TODO(EVO-010): Add the first evolution.\n"
+
+
+def test_probe_show_prints_editor_command_before_launch(project_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    editor_calls: list[list[str]] = []
+    out = TrackingOutput()
+
+    def fake_run(argv: list[str], **_kwargs: Any) -> None:
+        editor_calls.append(argv)
+        assert f"- editor: code --wait --goto {project_root / 'tool.py'}:1" in out.getvalue()
+        assert out.flushed
+
+    monkeypatch.setenv("CODE_EDITOR", "code --wait")
+    monkeypatch.delenv("EDITOR", raising=False)
+    monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
+
+    exit_code = run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
+
+    assert exit_code == 0
+    assert editor_calls == [["code", "--wait", "--goto", f"{project_root / 'tool.py'}:1"]]
+    assert "Opening evolution" in out.getvalue()
+    assert f"- editor: code --wait --goto {project_root / 'tool.py'}:1" in out.getvalue()
+
+
+def test_probe_show_launch_exception_does_not_print_opened_success(
+    project_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = TrackingOutput()
+
+    def fake_run(_argv: list[str], **_kwargs: Any) -> None:
+        raise FileNotFoundError("code")
+
+    monkeypatch.setenv("CODE_EDITOR", "code")
+    monkeypatch.delenv("EDITOR", raising=False)
+    monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
+
+    with pytest.raises(FileNotFoundError):
+        run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
+
+    assert "Opening evolution" in out.getvalue()
+    assert "Opened evolution" not in out.getvalue()
+    assert out.flushed

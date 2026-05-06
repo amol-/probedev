@@ -15,5 +15,6 @@ Canonical product vocabulary used by the feature files.
 - Pending evolution: Evolution marker still present in the codebase and not yet applied.
 - Probe plan: Ordered set of active evolutions discovered from code.
 - Refinement: Agent activity that creates or evolves executable probe code and its ordered evolution plan.
+- Show: Command action that opens an editor at the file and line containing a requested pending evolution id.
 - System: The Probe Development Toolkit described by this repository.
 - Workspace: Project root inspected by the `probedev` command.
