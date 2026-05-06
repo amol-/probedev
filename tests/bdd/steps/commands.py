@@ -30,7 +30,7 @@ def command_context(tmp_path: Path) -> CommandContext:
 
 @pytest.fixture
 def marker_prefix() -> str:
-    return "TODO" + "(PROBE-"
+    return "TODO" + "(EVO-"
 
 
 def write_readme(root: Path) -> None:
@@ -44,7 +44,9 @@ def write_process_readme(root: Path) -> None:
 
 
 def write_source(root: Path, text: str, filename: str = "tool.py") -> None:
-    root.joinpath(filename).write_text(text, encoding="utf-8")
+    path = root / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
 
 
 @given("a workspace with README intent")
@@ -53,13 +55,7 @@ def workspace_with_readme(command_context: CommandContext) -> None:
     write_process_readme(command_context.root)
 
 
-@given("a workspace without README intent")
-def workspace_without_readme(command_context: CommandContext) -> None:
-    write_process_readme(command_context.root)
-
-
 @given("a workspace with multiple ordered probe markers")
-@given("a workspace with multiple markers in one probe sequence")
 def workspace_with_ordered_markers(command_context: CommandContext, marker_prefix: str) -> None:
     write_source(
         command_context.root,
@@ -70,6 +66,7 @@ def workspace_with_ordered_markers(command_context: CommandContext, marker_prefi
             ]
         ),
     )
+    write_source(command_context.root, f"# {marker_prefix}030): Add the third step.\n", "src/service.py")
 
 
 @given("a workspace with a malformed probe marker candidate")
@@ -82,28 +79,8 @@ def workspace_with_no_markers(command_context: CommandContext) -> None:
     write_source(command_context.root, "print('hello')\n")
 
 
-@given("a workspace with multiple probe sequences")
-def workspace_with_multiple_sequences(command_context: CommandContext, marker_prefix: str) -> None:
-    write_source(
-        command_context.root,
-        "\n".join(
-            [
-                f"# {marker_prefix}AUTH-010): Add login.",
-                f"# {marker_prefix}SHARING-010): Add sharing.",
-            ]
-        ),
-    )
-
-
-@given("a workspace with probe evolution markers")
-def workspace_with_probe_markers(command_context: CommandContext, marker_prefix: str) -> None:
-    write_source(command_context.root, f"# {marker_prefix}010): Add the first step.\n")
-
-
 @given("a workspace with duplicate probe markers")
 def workspace_with_duplicate_markers(command_context: CommandContext, marker_prefix: str) -> None:
-    write_readme(command_context.root)
-    write_process_readme(command_context.root)
     write_source(
         command_context.root,
         "\n".join(
@@ -115,14 +92,48 @@ def workspace_with_duplicate_markers(command_context: CommandContext, marker_pre
     )
 
 
-@given("the workspace contains a malformed probe marker")
-def add_malformed_marker(command_context: CommandContext, marker_prefix: str) -> None:
-    write_source(command_context.root, f"# {marker_prefix}10): Missing zero padding.\n")
+@given("a workspace with pending evolutions that have no ids")
+def workspace_with_missing_evolution_ids(command_context: CommandContext) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                "# TODO(EVO): Add the first unnamed step.",
+                "# TODO(EVO): Add the second unnamed step.",
+            ]
+        ),
+    )
 
 
-@given("the workspace has the process reference")
-def workspace_has_process_reference(command_context: CommandContext) -> None:
-    write_process_readme(command_context.root)
+@given("a workspace with pending evolutions that have placeholder or invalid ids")
+def workspace_with_placeholder_or_invalid_ids(command_context: CommandContext) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                "# TODO(EVO-XXX): Add the placeholder step.",
+                "# TODO(EVO-10): Add the invalid step.",
+            ]
+        ),
+    )
+
+
+@given("a workspace with duplicate evolution ids")
+def workspace_with_duplicate_evolution_ids(command_context: CommandContext) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                "# TODO(EVO-010): Keep the first duplicate.",
+                "# TODO(EVO-010): Identify the second duplicate.",
+            ]
+        ),
+    )
+
+
+@given("a workspace with only valid unique evolution ids")
+def workspace_with_valid_unique_evolution_ids(command_context: CommandContext) -> None:
+    write_source(command_context.root, "# TODO(EVO-010): Keep this valid marker.\n")
 
 
 @given("the workspace has ordered evolution markers")
@@ -130,45 +141,24 @@ def workspace_has_ordered_evolution_markers(command_context: CommandContext, mar
     write_source(command_context.root, f"# {marker_prefix}010): Add the first step.\n")
 
 
-@when("the developer runs `probedev discuss`")
-def run_discuss(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["discuss"])
-
-
-@when("the developer runs `probedev refine`")
-def run_refine(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["refine"])
-
-
-@when("the developer runs `probedev refine` with a new evolution title")
-def run_refine_with_title(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["refine", "Add README-aware refinement."])
-
-
-@when("the developer runs `probedev challenge`")
-def run_challenge(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["challenge"])
-
-
 @when("the developer runs `probedev list`")
 def run_list(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["list"])
 
 
-@when("the developer runs `probedev evolve`")
-@when("the developer runs `probedev evolve` without a marker id")
-def run_evolve(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["evolve"])
+@when("the developer runs `probedev add` with a file and new evolution description")
+def run_add_with_description(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["add", "tool.py", "Add README-aware refinement."])
 
 
-@when("the developer runs `probedev evolve` with one marker id")
-def run_evolve_with_marker(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["evolve", "PROBE-SHARING-010"])
+@when("the developer runs `probedev add` with a target file and new evolution description")
+def run_add_with_target_file(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["add", "src/tool.py", "Add a path-specific evolution."])
 
 
-@when("the developer runs `probedev evolve` with an unknown marker id")
-def run_evolve_with_unknown_marker(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
-    run_probe(command_context, capsys, ["evolve", "PROBE-999"])
+@when("the developer runs `probedev identify`")
+def run_identify(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["identify"])
 
 
 def run_probe(
@@ -180,46 +170,11 @@ def run_probe(
     command_context.output = capsys.readouterr().out
 
 
-@then("the system reports the README being discussed")
-def assert_readme_discussed(command_context: CommandContext) -> None:
-    assert "Discussing intent in README.md" in command_context.output
-
-
-@then("the system prints questions about users, workflows, scope, and completion.")
-def assert_discussion_questions(command_context: CommandContext) -> None:
-    assert "Who is the first user" in command_context.output
-    assert "first useful workflow" in command_context.output
-    assert "out of scope" in command_context.output
-    assert "complete enough" in command_context.output
-
-
-@then("the system reports that no README was found")
-def assert_no_readme(command_context: CommandContext) -> None:
-    assert "No README.md found" in command_context.output
-
-
-@then("the system reports the refinement target")
-def assert_refinement_target(command_context: CommandContext) -> None:
-    assert "Refinement target" in command_context.output
-
-
-@then("the system includes the intent file, process file, and active evolution count.")
-def assert_refinement_details(command_context: CommandContext) -> None:
-    assert "- intent: README.md" in command_context.output
-    assert "- process: pdd/README.md" in command_context.output
-    assert "- active evolutions:" in command_context.output
-
-
-@then("the system tells the developer to add intent before refinement")
-def assert_refine_requires_intent(command_context: CommandContext) -> None:
-    assert "No README.md intent found" in command_context.output
-
-
 @then("the system records a new evolution marker")
-def assert_refine_records_marker(command_context: CommandContext) -> None:
-    assert "Recorded evolution" in command_context.output
-    assert "- marker: PROBE-020" in command_context.output
-    assert "- title: Add README-aware refinement." in command_context.output
+def assert_add_records_marker(command_context: CommandContext) -> None:
+    assert "Added evolution" in command_context.output
+    assert "- marker: EVO-020" in command_context.output
+    assert "- description: Add README-aware refinement." in command_context.output
 
 
 @then("the marker is visible to `probedev list`")
@@ -227,49 +182,95 @@ def assert_recorded_marker_is_listed(command_context: CommandContext, capsys: py
     exit_code = main(["--root", str(command_context.root), "list"])
     output = capsys.readouterr().out
     assert exit_code == 0
-    assert "PROBE-020" in output
+    assert "EVO-" in output
     assert "Add README-aware refinement." in output
 
 
-@then("the system prints challenge findings")
-def assert_challenge_findings(command_context: CommandContext) -> None:
-    assert "Challenge findings" in command_context.output
+@then("the marker is appended at the end of the requested file")
+def assert_marker_appended_at_end(command_context: CommandContext) -> None:
+    assert (command_context.root / "tool.py").read_text(encoding="utf-8").splitlines()[-1] == (
+        "# TODO(EVO-020): Add README-aware refinement."
+    )
 
 
-@then("the findings include missing README intent")
-def assert_missing_readme_finding(command_context: CommandContext) -> None:
-    assert "missing README.md intent" in command_context.output
+@then("the marker is written to the requested path")
+def assert_marker_written_to_requested_path(command_context: CommandContext) -> None:
+    assert "- location: src/tool.py:1" in command_context.output
+    assert (command_context.root / "src" / "tool.py").read_text(encoding="utf-8") == (
+        "# TODO(EVO-020): Add a path-specific evolution.\n"
+    )
 
 
-@then("the findings include the malformed marker location")
-def assert_malformed_location(command_context: CommandContext) -> None:
-    assert "malformed marker at tool.py:1" in command_context.output
+@then("the system assigns unique evolution ids")
+def assert_unique_ids_assigned(command_context: CommandContext) -> None:
+    assert "Identified evolutions" in command_context.output
+    assert "- marker: EVO-010" in command_context.output
+    assert "- marker: EVO-020" in command_context.output
+    assert "# TODO(EVO-010): Add the first unnamed step." in (command_context.root / "tool.py").read_text(
+        encoding="utf-8"
+    )
+    assert "# TODO(EVO-020): Add the second unnamed step." in (command_context.root / "tool.py").read_text(
+        encoding="utf-8"
+    )
 
 
-@then("the findings include the duplicate marker id")
-def assert_duplicate_marker(command_context: CommandContext) -> None:
-    assert "duplicate marker PROBE-010" in command_context.output
+@then("the system replaces them with unique evolution ids")
+def assert_invalid_ids_replaced(command_context: CommandContext) -> None:
+    content = (command_context.root / "tool.py").read_text(encoding="utf-8")
+    assert "# TODO(EVO-010): Add the placeholder step." in content
+    assert "# TODO(EVO-020): Add the invalid step." in content
 
 
-@then("the system reports that the baseline probe materials are present")
-def assert_baseline_present(command_context: CommandContext) -> None:
-    assert "README, process reference, and evolution markers are present" in command_context.output
+@then("each identified marker keeps its description and file location")
+def assert_identified_marker_context_preserved(command_context: CommandContext) -> None:
+    content = (command_context.root / "tool.py").read_text(encoding="utf-8")
+    assert "Add the" in content
+    assert "location: tool.py:" in command_context.output
 
 
-@then("the system prints the ordered probe plan")
-def assert_ordered_probe_plan(command_context: CommandContext) -> None:
-    assert "Ordered probe plan" in command_context.output
+@then("the markers are visible to `probedev list`")
+def assert_identified_markers_are_listed(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--root", str(command_context.root), "list"])
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Pending evolutions" in output
+    assert "EVO-010" in output
+
+
+@then("the system keeps one existing id")
+def assert_one_duplicate_id_kept(command_context: CommandContext) -> None:
+    content = (command_context.root / "tool.py").read_text(encoding="utf-8")
+    assert "# TODO(EVO-010): Keep the first duplicate." in content
+
+
+@then("the system assigns new unique ids to the conflicting markers")
+def assert_conflicting_markers_get_new_ids(command_context: CommandContext) -> None:
+    content = (command_context.root / "tool.py").read_text(encoding="utf-8")
+    assert "# TODO(EVO-020): Identify the second duplicate." in content
+
+
+@then("the system reports that no markers needed identifiers")
+def assert_no_markers_needed_identifiers(command_context: CommandContext) -> None:
+    assert "No evolution markers needed identifiers." in command_context.output
+
+
+@then("the system prints the pending evolution files")
+def assert_pending_evolution_files(command_context: CommandContext) -> None:
+    assert "Pending evolutions" in command_context.output
+    assert "tool.py" in command_context.output
+    assert "src/service.py" in command_context.output
 
 
 @then("the first marker in the sequence is marked as next")
 def assert_first_marker_next(command_context: CommandContext) -> None:
-    assert "next PROBE-010" in command_context.output
+    assert "next EVO-010" in command_context.output
 
 
-@then("each marker includes its file location and title.")
-def assert_marker_location_and_title(command_context: CommandContext) -> None:
-    assert "tool.py:2 Add the first step." in command_context.output
-    assert "tool.py:1 Add the second step." in command_context.output
+@then("each marker includes its id, line number, and description.")
+def assert_marker_id_line_and_description(command_context: CommandContext) -> None:
+    assert "EVO-010 line 2 Add the first step." in command_context.output
+    assert "EVO-020 line 1 Add the second step." in command_context.output
+    assert "EVO-030 line 1 Add the third step." in command_context.output
 
 
 @then("the system prints a malformed marker warning")
@@ -277,40 +278,19 @@ def assert_malformed_warning(command_context: CommandContext) -> None:
     assert "warn MALFORMED tool.py:1" in command_context.output
 
 
+@then("the system prints a duplicate marker warning")
+def assert_duplicate_warning(command_context: CommandContext) -> None:
+    assert "warn DUPLICATE EVO-010" in command_context.output
+
+
 @then("the system reports that no probe evolutions were found")
 def assert_no_probe_evolutions(command_context: CommandContext) -> None:
-    assert "No TODO(PROBE-...) evolutions found" in command_context.output
+    assert "No TODO(EVO-...) evolutions found" in command_context.output
 
 
-@then("the system selects the first ordered marker")
-def assert_first_evolution_selected(command_context: CommandContext) -> None:
-    assert "- marker: PROBE-010" in command_context.output
-
-
-@then("the system tells the developer to apply exactly that evolution.")
-def assert_apply_exactly_selected(command_context: CommandContext) -> None:
-    assert "Apply exactly this evolution" in command_context.output
-
-
-@then("the system selects the requested marker")
-def assert_requested_marker_selected(command_context: CommandContext) -> None:
-    assert "- marker: PROBE-SHARING-010" in command_context.output
-
-
-@then("the system prints its title and location.")
-def assert_selected_title_and_location(command_context: CommandContext) -> None:
-    assert "- title: Add sharing." in command_context.output
-    assert "- location: tool.py:2" in command_context.output
-
-
-@then("the system tells the developer to specify the evolution marker")
-def assert_requires_marker(command_context: CommandContext) -> None:
-    assert "Multiple probe sequences found" in command_context.output
-
-
-@then("the system reports that the evolution was not found")
-def assert_evolution_not_found(command_context: CommandContext) -> None:
-    assert "Evolution PROBE-999 was not found" in command_context.output
+@then("the system assigns the first evolution id")
+def assert_first_evolution_id(command_context: CommandContext) -> None:
+    assert "- marker: EVO-010" in command_context.output
 
 
 @then("the command succeeds.")

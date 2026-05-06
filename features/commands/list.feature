@@ -1,22 +1,25 @@
 @feature:F-COMMANDS-LIST
 Feature: List ordered evolutions
 
-  Developers use list to see the code-local probe plan in execution order.
+  Developers use list to see pending code-local evolutions grouped by the file where each evolution belongs.
 
   Rules:
     - List discovers evolution markers from scannable source files.
-    - List orders evolutions by sequence and marker id.
+    - List groups pending evolutions by source file.
+    - List orders files by path.
+    - List orders evolutions within each file by sequence and marker id.
     - List highlights the next unapplied evolution in each sequence.
+    - List reports duplicate marker ids.
     - List reports malformed marker candidates.
     - Markdown and ignored workspace directories are not part of the active plan scan.
 
   @id:F-COMMANDS-LIST-S001
-  Scenario: Ordered markers are printed with the next marker highlighted
+  Scenario: Pending evolutions are grouped by file
     Given a workspace with multiple ordered probe markers
     When the developer runs `probedev list`
-    Then the system prints the ordered probe plan
+    Then the system prints the pending evolution files
     And the first marker in the sequence is marked as next
-    And each marker includes its file location and title.
+    And each marker includes its id, line number, and description.
 
   @id:F-COMMANDS-LIST-S002
   Scenario: Malformed marker candidates are reported
@@ -26,6 +29,13 @@ Feature: List ordered evolutions
     And the command succeeds.
 
   @id:F-COMMANDS-LIST-S003
+  Scenario: Duplicate marker ids are reported
+    Given a workspace with duplicate probe markers
+    When the developer runs `probedev list`
+    Then the system prints a duplicate marker warning
+    And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S004
   Scenario: No markers fails list
     Given a workspace with no probe evolution markers
     When the developer runs `probedev list`

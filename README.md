@@ -2,11 +2,11 @@
 
 Agents speak code. Developers speak code. Specs were invented to communicate between humans; probes are for communication between humans and agents.
 
-Code-First Probe-Driven Development is a project management and software development workflow that never leaves code. A software idea starts as a short README description, becomes an executable architectural probe, and then evolves through ordered evolutions anchored by `TODO(PROBE-...)` markers at the exact code locations where the work belongs.
+Code-First Probe-Driven Development is a project management and software development workflow that never leaves code. A software idea starts as a short README description, becomes an executable architectural probe, and then evolves through ordered evolutions anchored by `TODO(EVO-...)` markers at the exact code locations where the work belongs.
 
 The codebase is the source of truth. The README explains intent. The probe shows architecture. The ordered evolutions are the plan.
 
-An evolution is not just one line of text. It is closer to an issue in an issue tracker, but code-local: the `TODO(PROBE-...)` line gives the ID, order, and short title; the surrounding code, names, comments, types, tests, and optional linked BDD feature file provide the context needed to apply it.
+An evolution is not just one line of text. It is closer to an issue in an issue tracker, but code-local: the `TODO(EVO-...)` line gives the ID, order, and short title; the surrounding code, names, comments, types, tests, and optional linked BDD feature file provide the context needed to apply it.
 
 For the process foundations, rules, and glossary, see [pdd/README.md](pdd/README.md).
 
@@ -14,15 +14,13 @@ For the process foundations, rules, and glossary, see [pdd/README.md](pdd/README
 
 This repository defines the command toolkit needed to practice Probe-Driven Development.
 
-The toolkit should help a developer and agent move through the full lifecycle:
+The toolkit gives developers and agents a deterministic view of the code-local project plan:
 
-- discuss the software intent without prematurely choosing technical design
-- refine that intent into executable architecture
-- challenge the code-local plan against the README
 - list the ordered implementation plan from code
-- apply one evolution at a time
+- add a new ordered evolution with a unique ID
+- identify pending evolutions that do not have valid unique IDs
 
-The toolkit exists to keep agents inside the Probe-Driven Development workflow. It should prevent common failure modes: writing architecture documents instead of code, creating detached prototypes, overbuilding production features too early, losing the implementation order, and letting TODO markers become stale.
+The toolkit exists to keep the project-management state inside the codebase. Agent-shaped activities such as discussion, challenge, refinement, and applying evolutions belong in coding agents that can read and edit the project with judgment.
 
 ## Product behavior
 
@@ -34,86 +32,56 @@ Implementation progress is tracked by probe evolutions by referencing stable fea
 
 ## Commands
 
-### `probedev discuss`
-
-Challenge and improve the README description.
-
-This command works on the product idea, not the architecture. It asks about users, workflows, value, scope, constraints, and completion. It should avoid technical questions unless they block understanding the software.
-
-Expected outcome:
-
-- a clearer README-level software description
-- no code changes unless the user explicitly asks to continue into a probe
-
-### `probedev refine`
-
-Create or evolve an architectural probe.
-
-This command reads the README and the current codebase, then updates the executable probe and its ordered probe plan.
-
-It must handle all project states:
-
-- no codebase yet: create the first executable architectural probe
-- existing codebase with no evolutions: introduce a probe for the requested idea inside the existing system
-- existing probe: evolve it in place
-- completed probe-based software: add a new capability through a new or extended probe
-
-Expected outcome:
-
-- executable code
-- realistic entrypoint and integration points
-- ordered evolutions for the remaining plan, each anchored by a `TODO(PROBE-...)` marker
-- no detached architecture document
-
-### `probedev challenge`
-
-Challenge the current probe plan against the README.
-
-This command compares product intent, executable code, and ordered evolutions. It should find drift, missing core flows, vague evolutions, oversized evolutions, stale evolutions, ordering problems, and places where the code no longer communicates the intended software.
-
-Expected outcome:
-
-- suggested `probedev refine` steps
-- no code changes by default
-
 ### `probedev list`
 
 List the ordered probe plan.
 
-This command scans the codebase for `TODO(PROBE-...)` markers and prints the ordered evolutions with file locations.
+This command scans the codebase for `TODO(EVO-...)` markers and prints pending evolutions grouped by source file.
 
 Expected outcome:
 
-- ordered evolution list
+- pending evolutions grouped by file
 - current first unapplied evolution highlighted
-- warnings for malformed IDs, duplicate IDs, or confusing sequence structure
+- warnings for malformed IDs or duplicate IDs
 
-### `probedev evolve`
+### `probedev add`
 
-Apply one ordered evolution.
+Add one ordered evolution to the code-local probe plan.
 
-This command assigns an agent to apply exactly one evolution. If no ID is provided, it should apply the first unapplied evolution in order.
+This command records a `TODO(EVO-...)` marker without applying the work. It requires a source file and an evolution description, assigns the next unique ID in the default sequence, and appends the marker to the end of the requested file.
 
 Expected outcome:
 
-- the selected evolution is implemented, removed, or replaced with more precise follow-up evolutions
-- targeted verification is run
-- unrelated evolutions are left untouched
+- a new ordered evolution marker
+- a unique ID chosen by the tool
+- marker placement at the end of the requested file
 - the probe plan remains ordered and reviewable
+
+### `probedev identify`
+
+Assign stable unique IDs to existing evolution markers that are missing IDs, use placeholders, use invalid IDs, or conflict with another marker.
+
+This command updates marker syntax without applying the work. It preserves descriptions and file placement while making the plan addressable through `EVO-XXX` IDs.
+
+Expected outcome:
+
+- every pending evolution has a valid unique `EVO-XXX` ID
+- existing valid unique IDs are left unchanged
+- identified evolutions remain visible through `probedev list`
 
 ## TODO Syntax
 
 Evolutions are ordered and code-local. Each evolution is anchored by a searchable marker:
 
 ```text
-TODO(PROBE-010): Add persistent storage behind MovieRepository.
-TODO(PROBE-020): Replace in-memory movie list with repository-backed state.
-TODO(PROBE-030): Add edit and remove flows to the existing movie UI.
+TODO(EVO-010): Add persistent storage behind MovieRepository.
+TODO(EVO-020): Replace in-memory movie list with repository-backed state.
+TODO(EVO-030): Add edit and remove flows to the existing movie UI.
 ```
 
 Rules:
 
-- use `TODO(PROBE-010)` as the default syntax
+- use `TODO(EVO-010)` as the default syntax
 - use zero-padded numbers so lexical sorting matches execution order
 - number by tens to leave space for insertions
 - write the marker as a short issue title, not the whole issue body
@@ -121,14 +89,7 @@ Rules:
 - place each marker where the work belongs
 - update evolutions as the software changes
 
-For multiple active architectural scopes, use a named sequence only when needed:
-
-```text
-TODO(PROBE-AUTH-010): Add login session boundary.
-TODO(PROBE-SHARING-010): Add share link model.
-```
-
-The default should be one ordered sequence. Multiple sequences are useful only when the project has multiple independent architectural fronts.
+Use one ordered `EVO-XXX` sequence for the current agreed scope. If the project has multiple independent architectural fronts, keep them in the same sequence and make the scope clear in the marker title and nearby code.
 
 ## Core Requirements
 
@@ -139,7 +100,8 @@ The toolkit must preserve these requirements:
 - probes are executable
 - probes live inside the real codebase
 - evolutions are ordered
-- `probedev refine` changes the plan
-- `probedev evolve` applies the plan one evolution at a time
-- every command keeps the workflow reviewable in minutes
-- completion means no `TODO(PROBE-...)` markers remain for the current agreed scope
+- `probedev list` reads the plan from code
+- `probedev add` records one new planned evolution
+- `probedev identify` assigns valid unique IDs to existing planned evolutions
+- coding agents perform nondeterministic workflow actions such as discussion, challenge, refinement, and applying evolutions
+- completion means no `TODO(EVO-...)` markers remain for the current agreed scope

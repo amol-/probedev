@@ -6,7 +6,7 @@ The central claim is simple:
 
 > Agents speak code. Developers speak code. Specs were invented to communicate between humans; probes are for communication between humans and agents.
 
-In Probe-Driven Development, the software plan lives in the codebase as ordered evolutions anchored by `TODO(PROBE-...)` markers. The README gives product intent. The probe gives architecture. The evolutions give execution order.
+In Probe-Driven Development, the software plan lives in the codebase as ordered evolutions anchored by `TODO(EVO-...)` markers. The README gives product intent. The probe gives architecture. The evolutions give execution order.
 
 ## Foundations
 
@@ -33,13 +33,13 @@ The probe should be small enough to review in minutes. If the probe takes hours 
 
 ### Evolutions Are The Plan
 
-`TODO(PROBE-...)` markers are not incidental debt comments, but they are also not the whole evolution. They are anchors for ordered code-local planned changes.
+`TODO(EVO-...)` markers are not incidental debt comments, but they are also not the whole evolution. They are anchors for ordered code-local planned changes.
 
-An evolution is closer to an issue in an issue tracker. It has an ID, order, and short title in the `TODO(PROBE-...)` marker, and it gets most of its context from nearby code: names, types, comments, tests, integration points, and optional linked BDD feature files.
+An evolution is closer to an issue in an issue tracker. It has an ID, order, and short title in the `TODO(EVO-...)` marker, and it gets most of its context from nearby code: names, types, comments, tests, integration points, and optional linked BDD feature files.
 
 Each evolution should describe a concrete step from the current probe toward the real implementation. Each marker belongs at the code location where the future work should happen.
 
-Ideally, moving from probe to production is mostly applying evolutions and removing their `TODO(PROBE-...)` markers while preserving the architecture shape that the probe validated.
+Ideally, moving from probe to production is mostly applying evolutions and removing their `TODO(EVO-...)` markers while preserving the architecture shape that the probe validated.
 
 ### The Workflow Never Leaves Code
 
@@ -119,7 +119,7 @@ Each application of an evolution should:
 
 ### 6. Graduation
 
-The software is complete for the current agreed scope when no `TODO(PROBE-...)` markers remain.
+The software is complete for the current agreed scope when no `TODO(EVO-...)` markers remain.
 
 If new features are requested later, the project returns to discussion, refinement, challenge, and applying evolutions for that new scope.
 
@@ -139,7 +139,7 @@ If new features are requested later, the project returns to discussion, refineme
 - The probe must use the realistic entrypoint for the software.
 - The probe should use existing infrastructure when the codebase provides it.
 - The probe should stay concrete unless the idea being probed is a generalization.
-- The probe should surface concerns in code as evolutions anchored by `TODO(PROBE-...)`.
+- The probe should surface concerns in code as evolutions anchored by `TODO(EVO-...)`.
 - The probe should stay reviewable in minutes.
 - The probe should be easy to remove.
 
@@ -148,7 +148,7 @@ If new features are requested later, the project returns to discussion, refineme
 Use this default syntax:
 
 ```text
-TODO(PROBE-010): Concrete implementation step.
+TODO(EVO-010): Concrete implementation step.
 ```
 
 Rules:
@@ -163,28 +163,20 @@ Rules:
 - Evolutions must be updated when the plan changes.
 - An evolution may be replaced by more precise evolutions if applying it reveals necessary substeps.
 
-Use named sequences only when the project has multiple independent architectural scopes:
-
-```text
-TODO(PROBE-AUTH-010): Add login session boundary.
-TODO(PROBE-SHARING-010): Add share link model.
-```
+Use one ordered `EVO-XXX` sequence for the current agreed scope. If the project has multiple independent architectural scopes, keep them in the same sequence and make the scope clear in the marker title and nearby code.
 
 ### Command Rules
 
-- `probedev discuss` changes README intent.
-- `probedev refine` changes executable architecture and the evolution plan.
-- `probedev challenge` reviews README, code, and evolutions without editing by default.
 - `probedev list` reads the ordered plan from code.
-- `probedev evolve` applies one evolution.
+- `probedev add` records one new ordered evolution marker with a unique ID at the end of a requested file.
 
-Keep this separation strict. Refinement changes the plan. `probedev evolve` applies the plan one evolution at a time.
+Keep this separation strict. The command line tool manages project-state visibility. Coding agents handle discussion, refinement, challenge, and applying evolutions because those activities require judgment and code changes.
 
 ## Optional BDD Integration
 
 Probe-Driven Development works without BDD. BDD is optional.
 
-When BDD is useful, it should be introduced during `probedev evolve`, not before the architectural probe exists.
+When BDD is useful, it should be introduced while a coding agent applies a selected evolution, not before the architectural probe exists.
 
 The probe discovers where behavior belongs in the software. BDD describes the user-observable behavior that one selected evolution must satisfy.
 
@@ -192,7 +184,7 @@ The probe discovers where behavior belongs in the software. BDD describes the us
 
 Writing feature files before the probe can force behavior language, nouns, workflows, and boundaries too early.
 
-First use `probedev refine` to create or evolve the executable architecture. Then, when applying a specific evolution, define the BDD feature for that evolution's behavior.
+First use a coding agent to create or evolve the executable architecture. Then, when applying a specific evolution, define the BDD feature for that evolution's behavior.
 
 This keeps the responsibilities separate:
 
@@ -202,9 +194,9 @@ This keeps the responsibilities separate:
 - BDD feature files describe user-observable behavior for a selected step
 - implementation makes that selected behavior pass
 
-### BDD During `probedev evolve`
+### BDD While Applying An Evolution
 
-When applying an evolution that has user-observable behavior, `probedev evolve` may:
+When applying an evolution that has user-observable behavior, the coding agent may:
 
 - inspect the selected evolution and its surrounding code context
 - create or update the smallest relevant feature file
@@ -225,14 +217,14 @@ Link code-local evolutions to BDD feature files explicitly.
 In code:
 
 ```text
-TODO(PROBE-030): Add edit and remove flows to the movie library.
+TODO(EVO-030): Add edit and remove flows to the movie library.
 Feature: features/movie_library/manage_movies.feature
 ```
 
 In the feature file:
 
 ```gherkin
-# Probe: PROBE-030
+# Evolution: EVO-030
 Feature: Manage movies
 ```
 
@@ -240,7 +232,7 @@ Keep the link simple and searchable. The evolution remains the project-plan unit
 
 ### BDD Challenge Checks
 
-When BDD is used, `probedev challenge` should also check:
+When BDD is used, challenge work should also check:
 
 - each user-observable evolution has a linked feature file
 - linked feature files match README intent
@@ -248,7 +240,7 @@ When BDD is used, `probedev challenge` should also check:
 - feature language matches the nouns and workflows discovered by the probe
 - stale feature files are updated or removed when evolutions change
 
-BDD should clarify behavior. It should not become a second project plan that competes with `TODO(PROBE-...)`.
+BDD should clarify behavior. It should not become a second project plan that competes with `TODO(EVO-...)`.
 
 ## Glossary
 
@@ -284,11 +276,11 @@ When BDD is used, applying an evolution may first define or update the feature f
 
 ### Graduation
 
-The point where all `TODO(PROBE-...)` markers for the current agreed scope have been applied and removed.
+The point where all `TODO(EVO-...)` markers for the current agreed scope have been applied and removed.
 
 ### Evolution
 
-An ordered code-local planned change anchored by `TODO(PROBE-...)` syntax.
+An ordered code-local planned change anchored by `TODO(EVO-...)` syntax.
 
 The marker gives the evolution ID, execution order, and short title. The surrounding code provides most of the detail needed to apply it.
 
@@ -300,7 +292,7 @@ The currently agreed product or capability scope described by the README and rep
 
 ### Evolutions Can Become Stale
 
-Address this by running challenge regularly and by keeping evolutions concrete, ordered, and colocated with the code they affect.
+Address this by challenging the probe regularly and by keeping evolutions concrete, ordered, and colocated with the code they affect.
 
 ### Code May Miss Product Intent
 
@@ -308,7 +300,7 @@ Address this by keeping the README short but meaningful, and by challenging the 
 
 ### Agents May Overbuild
 
-Address this by separating `probedev refine` from `probedev evolve`, and by applying one evolution at a time.
+Address this by keeping the CLI limited to plan visibility and marker creation, and by applying one evolution at a time through coding agents.
 
 ### One Ordered List May Not Fit Every Project
 

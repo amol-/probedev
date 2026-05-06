@@ -9,7 +9,7 @@ from probedev.cli import build_parser, main
 
 @pytest.fixture
 def project_root(tmp_path: Path) -> Path:
-    marker = "TODO" + "(PROBE-"
+    marker = "TODO" + "(EVO-"
     (tmp_path / "README.md").write_text("Tool intent\n", encoding="utf-8")
     pdd = tmp_path / "pdd"
     pdd.mkdir()
@@ -38,18 +38,18 @@ def test_package_installs_probedev_command() -> None:
 
 
 def test_probe_list_discovers_non_python_source_markers(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
+    marker = "TODO" + "(EVO-"
     source = tmp_path / "main.go"
     source.write_text(f"// {marker}010): Add the Go step.\n", encoding="utf-8")
 
     exit_code = main(["--root", str(tmp_path), "list"])
 
     assert exit_code == 0
-    assert "next PROBE-010 main.go:1 Add the Go step." in capsys.readouterr().out
+    assert "  next EVO-010 line 1 Add the Go step." in capsys.readouterr().out
 
 
 def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
+    marker = "TODO" + "(EVO-"
     source = tmp_path / "tool.py"
     source.write_text(f"# {marker}10): Missing zero padding.\n", encoding="utf-8")
 
@@ -61,112 +61,16 @@ def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
 
 def test_probe_list_ignores_marker_text_inside_string_literals(tmp_path: Path, capsys) -> None:
     source = tmp_path / "tool.py"
-    source.write_text('message = "TODO(PROBE-010): Not a real marker."\n', encoding="utf-8")
+    source.write_text('message = "TODO(EVO-010): Not a real marker."\n', encoding="utf-8")
 
     exit_code = main(["--root", str(tmp_path), "list"])
 
     assert exit_code == 1
-    assert capsys.readouterr().out == "No TODO(PROBE-...) evolutions found.\n"
-
-
-def test_probe_challenge_fails_when_findings_are_present(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
-    source = tmp_path / "tool.py"
-    source.write_text(f"# {marker}10): Missing zero padding.\n", encoding="utf-8")
-
-    exit_code = main(["--root", str(tmp_path), "challenge"])
-
-    assert exit_code == 1
-    output = capsys.readouterr().out
-    assert "missing README.md intent" in output
-    assert "malformed marker at tool.py:1" in output
-
-
-def test_probe_challenge_fails_when_duplicate_markers_are_present(project_root: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
-    source = project_root / "tool.py"
-    source.write_text(
-        "\n".join(
-            [
-                f"# {marker}010): Add the first copy.",
-                f"# {marker}010): Add the duplicate copy.",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    exit_code = main(["--root", str(project_root), "challenge"])
-
-    assert exit_code == 1
-    output = capsys.readouterr().out
-    assert "duplicate marker PROBE-010" in output
-
-
-def test_probe_evolve_requires_marker_for_multiple_sequences(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
-    source = tmp_path / "tool.py"
-    source.write_text(
-        "\n".join(
-            [
-                f"# {marker}AUTH-010): Add login.",
-                f"# {marker}SHARING-010): Add sharing.",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    exit_code = main(["--root", str(tmp_path), "evolve"])
-
-    assert exit_code == 1
-    assert "Multiple probe sequences found" in capsys.readouterr().out
-
-
-def test_probe_evolve_selects_first_marker_in_default_sequence(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
-    source = tmp_path / "tool.py"
-    source.write_text(
-        "\n".join(
-            [
-                f"# {marker}020): Add the second step.",
-                f"# {marker}010): Add the first step.",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    exit_code = main(["--root", str(tmp_path), "evolve"])
-
-    assert exit_code == 0
-    assert "- marker: PROBE-010" in capsys.readouterr().out
-
-
-def test_probe_evolve_selects_explicit_marker_across_multiple_sequences(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
-    source = tmp_path / "tool.py"
-    source.write_text(
-        "\n".join(
-            [
-                f"# {marker}AUTH-010): Add login.",
-                f"# {marker}SHARING-010): Add sharing.",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    exit_code = main(["--root", str(tmp_path), "evolve", "PROBE-SHARING-010"])
-
-    assert exit_code == 0
-    assert capsys.readouterr().out.splitlines() == [
-        "Selected evolution",
-        "- marker: PROBE-SHARING-010",
-        "- title: Add sharing.",
-        "- location: tool.py:2",
-        "Apply exactly this evolution, then remove or replace its marker.",
-    ]
+    assert capsys.readouterr().out == "No TODO(EVO-...) evolutions found.\n"
 
 
 def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
-    marker = "TODO" + "(PROBE-"
+    marker = "TODO" + "(EVO-"
     source = tmp_path / "tool.py"
     source.write_text(
         "\n".join(
@@ -177,49 +81,40 @@ def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
         ),
         encoding="utf-8",
     )
+    service = tmp_path / "src" / "service.py"
+    service.parent.mkdir()
+    service.write_text(f"# {marker}030): Add the third step.\n", encoding="utf-8")
 
     exit_code = main(["--root", str(tmp_path), "list"])
 
     assert exit_code == 0
     assert capsys.readouterr().out.splitlines() == [
-        "Ordered probe plan",
-        "next PROBE-010 tool.py:2 Add the first step.",
-        "     PROBE-020 tool.py:1 Add the second step.",
+        "Pending evolutions",
+        "src/service.py",
+        "       EVO-030 line 1 Add the third step.",
+        "tool.py",
+        "  next EVO-010 line 2 Add the first step.",
+        "       EVO-020 line 1 Add the second step.",
     ]
 
 
-def test_probe_refine_records_new_evolution_without_applying_it(project_root: Path, capsys) -> None:
-    exit_code = main(["--root", str(project_root), "refine", "Add README-aware refinement."])
+def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, capsys) -> None:
+    exit_code = main(["--root", str(project_root), "add", "tool.py", "Add README-aware refinement."])
 
     assert exit_code == 0
     output = capsys.readouterr().out
-    assert "Recorded evolution" in output
-    assert "- marker: PROBE-020" in output
-    assert "- title: Add README-aware refinement." in output
-    assert "Run probedev evolve PROBE-020" in output
-    assert "TODO(PROBE-020): Add README-aware refinement." in (project_root / "tool.py").read_text(encoding="utf-8")
+    assert "Added evolution" in output
+    assert "- marker: EVO-020" in output
+    assert "- description: Add README-aware refinement." in output
+    assert "Run probedev list" in output
+    assert (project_root / "tool.py").read_text(encoding="utf-8").splitlines() == [
+        "# TODO(EVO-010): Add the first step.",
+        "",
+        "# TODO(EVO-020): Add README-aware refinement.",
+    ]
 
 
-def test_probe_refine_records_new_evolution_in_requested_path(project_root: Path, capsys) -> None:
-    exit_code = main(
-        [
-            "--root",
-            str(project_root),
-            "refine",
-            "--path",
-            "src/tool.py",
-            "Add a path-specific evolution.",
-        ]
-    )
-
-    assert exit_code == 0
-    assert "- location: src/tool.py:1" in capsys.readouterr().out
-    assert (project_root / "src" / "tool.py").read_text(encoding="utf-8") == (
-        "# TODO(PROBE-020): Add a path-specific evolution.\n"
-    )
-
-
-def test_probe_refine_reports_actual_line_when_appending_to_existing_path(project_root: Path, capsys) -> None:
+def test_probe_add_reports_actual_line_when_appending_to_existing_path(project_root: Path, capsys) -> None:
     target = project_root / "src" / "tool.py"
     target.parent.mkdir()
     target.write_text("print('ready')\n", encoding="utf-8")
@@ -228,8 +123,7 @@ def test_probe_refine_reports_actual_line_when_appending_to_existing_path(projec
         [
             "--root",
             str(project_root),
-            "refine",
-            "--path",
+            "add",
             "src/tool.py",
             "Add an appended evolution.",
         ]
@@ -240,5 +134,13 @@ def test_probe_refine_reports_actual_line_when_appending_to_existing_path(projec
     assert target.read_text(encoding="utf-8").splitlines() == [
         "print('ready')",
         "",
-        "# TODO(PROBE-020): Add an appended evolution.",
+        "# TODO(EVO-020): Add an appended evolution.",
     ]
+
+
+def test_probe_add_records_first_evolution_when_plan_is_empty(tmp_path: Path, capsys) -> None:
+    exit_code = main(["--root", str(tmp_path), "add", "src/tool.py", "Add the first evolution."])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+    assert (tmp_path / "src" / "tool.py").read_text(encoding="utf-8") == "# TODO(EVO-010): Add the first evolution.\n"

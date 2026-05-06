@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Iterable
 
 
-TODO_RE = re.compile(r"TODO\((PROBE(?:-[A-Z]+)?-\d{3})\):\s*(.+)")
-TODO_CANDIDATE_RE = re.compile(r"TODO\(PROBE")
+TODO_RE = re.compile(r"TODO\((EVO-\d{3})\):\s*(.+)")
+TODO_CANDIDATE_RE = re.compile(r"TODO\(EVO")
 SKIPPED_DIRS = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", "dist", "build"}
 SKIPPED_SUFFIXES = {".md"}
 
@@ -61,7 +61,7 @@ class ProbePlan:
     def next_in_sequence(self, sequence: str) -> Evolution:
         """Find the first evolution in one sequence.
 
-        :param str sequence: Sequence name such as ``PROBE`` or ``PROBE-AUTH``.
+        :param str sequence: Sequence name such as ``EVO``.
         """
         return next(evolution for evolution in self.evolutions if sequence_name(evolution.marker) == sequence)
 
@@ -79,7 +79,7 @@ class ProbePlan:
 
 
 class ProbePlanParser:
-    """Parse code-local ``TODO(PROBE-...)`` markers from a workspace."""
+    """Parse code-local ``TODO(EVO-...)`` markers from a workspace."""
 
     def scan(self, root: Path) -> ProbePlan:
         """Scan a project root for active probe evolution markers.
@@ -90,7 +90,7 @@ class ProbePlanParser:
         malformed = []
         for path in self._iter_scannable_files(root):
             try:
-                # TODO(EVO-XXX): Skip permission denied or  unaccessible files instead of crash
+                # TODO(EVO-050): Skip permission-denied or inaccessible files instead of crashing during plan scans.
                 lines = path.read_text(encoding="utf-8").splitlines()
             except UnicodeDecodeError:
                 continue
@@ -131,7 +131,6 @@ class ProbePlanParser:
 def sequence_name(marker: str) -> str:
     """Extract the sequence portion of a marker ID.
 
-    :param str marker: Marker ID such as ``PROBE-010`` or ``PROBE-AUTH-010``.
+    :param str marker: Marker ID such as ``EVO-010``.
     """
-    parts = marker.split("-")
-    return "PROBE" if len(parts) == 2 else "-".join(parts[:-1])
+    return marker.rsplit("-", 1)[0]
