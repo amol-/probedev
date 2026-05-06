@@ -92,8 +92,10 @@ def run_show(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int
     except RuntimeError as exc:
         out.write(f"Could not show evolution: {exc}\n")
         return EXIT_FAILURE
+    except OSError as exc:
+        out.write(f"Could not show evolution: {exc}\n")
+        return EXIT_FAILURE
 
-    # TODO(EVO-140): Decide whether show should stay quiet on success once editor launch failures are surfaced.
     return EXIT_SUCCESS
 
 

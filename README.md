@@ -42,8 +42,6 @@ This command scans the codebase for `TODO(EVO-...)` markers and prints pending e
 ```bash
 % probedev list
 Pending evolutions
-src/probedev/cli.py
-       EVO-140 line 90 Decide whether show should stay quiet on success once editor launch failures are surfaced.
 src/probedev/evolutions.py
   next EVO-010 line 52 Extract id allocation into a component that rejects duplicate default-sequence markers before choosing the next id.
        EVO-020 line 69 Confirm whether add should create missing files or require the target file to already exist.

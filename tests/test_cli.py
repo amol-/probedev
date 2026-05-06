@@ -317,6 +317,7 @@ def test_probe_show_prints_editor_command_before_launch(project_root: Path, monk
     assert editor_calls == [["code", "--wait", "--goto", f"{project_root / 'tool.py'}:1"]]
     assert "Opening evolution" in out.getvalue()
     assert f"- editor: code --wait --goto {project_root / 'tool.py'}:1" in out.getvalue()
+    assert "Opened evolution" not in out.getvalue()
 
 
 def test_probe_show_launch_exception_does_not_print_opened_success(
@@ -332,9 +333,10 @@ def test_probe_show_launch_exception_does_not_print_opened_success(
     monkeypatch.delenv("EDITOR", raising=False)
     monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
 
-    with pytest.raises(FileNotFoundError):
-        run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
+    exit_code = run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
 
+    assert exit_code == 1
     assert "Opening evolution" in out.getvalue()
+    assert "Could not show evolution: code" in out.getvalue()
     assert "Opened evolution" not in out.getvalue()
     assert out.flushed

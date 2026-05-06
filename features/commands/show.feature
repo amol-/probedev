@@ -9,8 +9,10 @@ Feature: Show an evolution
     - Show opens the configured editor at the matching marker file and line.
     - Show chooses the editor from `CODE_EDITOR`, then `EDITOR`, then an available default editor.
     - Show reports the selected editor command before launching the editor.
+    - Show does not print an after-launch success message.
     - Show reports a missing evolution id without opening an editor.
     - Show reports duplicate evolution ids without opening an editor.
+    - Show reports editor launch failures after reporting the selected editor command.
 
   @id:F-COMMANDS-SHOW-S001
   Scenario: Matching evolution opens at its marker line
@@ -20,6 +22,7 @@ Feature: Show an evolution
     Then the system opens the configured editor at the file containing `EVO-020`
     And the system reports the selected editor command
     And the editor is positioned on the `EVO-020` marker line
+    And the system does not print an after-launch success message
     And the command succeeds.
 
   @id:F-COMMANDS-SHOW-S002
@@ -73,4 +76,15 @@ Feature: Show an evolution
     When the developer runs `probedev show EVO`
     Then the system reports that the requested evolution id is invalid
     And no editor is opened
+    And the command fails.
+
+  @id:F-COMMANDS-SHOW-S008
+  Scenario: Editor launch failure fails show after reporting the selected command
+    Given a workspace with ordered evolution markers
+    And the developer has a configured code editor
+    And the configured editor launch fails
+    When the developer runs `probedev show EVO-020`
+    Then the system reports the selected editor command
+    And the system reports the editor launch error
+    And the system does not print an after-launch success message
     And the command fails.

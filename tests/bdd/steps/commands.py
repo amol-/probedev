@@ -184,6 +184,18 @@ def developer_has_code_editor(command_context: CommandContext, monkeypatch: pyte
     monkeypatch.delenv("EDITOR", raising=False)
 
 
+@given("the configured editor launch fails")
+def configured_editor_launch_fails(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    command_context.editor_calls = []
+
+    def fake_run(argv: list[str], **_kwargs: Any) -> None:
+        assert command_context.editor_calls is not None
+        command_context.editor_calls.append(argv)
+        raise FileNotFoundError("code")
+
+    monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
+
+
 @given("the developer has both `CODE_EDITOR` and `EDITOR` configured")
 def developer_has_both_editors(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
     install_editor_spy(command_context, monkeypatch)
@@ -308,6 +320,16 @@ def assert_selected_editor_command_reported(command_context: CommandContext) -> 
     argv = assert_editor_opened(command_context)
     assert "Opening evolution" in command_context.output
     assert f"- editor: {shlex.join(argv)}" in command_context.output
+    assert "Opened evolution" not in command_context.output
+
+
+@then("the system reports the editor launch error")
+def assert_editor_launch_error_reported(command_context: CommandContext) -> None:
+    assert "Could not show evolution: code" in command_context.output
+
+
+@then("the system does not print an after-launch success message")
+def assert_after_launch_success_message_absent(command_context: CommandContext) -> None:
     assert "Opened evolution" not in command_context.output
 
 
