@@ -16,8 +16,52 @@ from pathlib import Path
 CANDIDATE_RE = re.compile(r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*(?P<description>.*)")
 
 SKIPPED_DIRS = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", "dist", "build"}
-SKIPPED_SUFFIXES = {".md"}
-# TODO(EVO-180): Switch file selection from the current wide denylist to an allowlist of known programming-language source extensions plus recognized extensionless source files (e.g. Makefile, Dockerfile) — language-agnostic parsing does not imply scanning every text file, and the allowlist is what keeps non-source files like .feature and lockfiles out of the scan.
+# Allowlist of programming-language source extensions. Language-agnostic
+# marker parsing does not mean scanning every text file: non-source files
+# such as ``.feature`` specs, ``.json``/``.toml`` configs, and lockfiles
+# must not appear in the plan even when they happen to contain a
+# ``TODO(EVO-...)``-shaped line.
+SOURCE_SUFFIXES = {
+    ".py", ".pyi",
+    ".go",
+    ".rs",
+    ".c", ".h", ".cc", ".cpp", ".hh", ".hpp",
+    ".java", ".kt", ".kts",
+    ".rb",
+    ".php",
+    ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+    ".sh", ".bash", ".zsh",
+    ".swift",
+    ".cs",
+    ".scala",
+    ".clj", ".cljs",
+    ".hs",
+    ".ex", ".exs", ".erl",
+    ".lua",
+    ".pl", ".pm",
+    ".nim",
+    ".cr",
+    ".ml", ".mli",
+    ".fs", ".fsx",
+    ".dart",
+}
+# Recognized extensionless source filenames common in build/infra trees.
+# TODO(EVO-190): Decide whether to case-fold comparisons (e.g. ``.PY`` vs ``.py``, ``makefile`` vs ``Makefile``) and pattern-match common variants such as ``Dockerfile.prod`` / ``Makefile.inc`` that the current exact-match allowlist silently skips.
+SOURCE_FILENAMES = {"Makefile", "Dockerfile", "Rakefile", "Gemfile", "Jenkinsfile"}
+
+
+def is_source_file(path: Path) -> bool:
+    """Return True when a path matches the scanner's source-file allowlist.
+
+    Shared between the scanner and the ``add`` command so the set of files
+    the scanner reads stays identical to the set of files the ``add`` command
+    is allowed to write markers into. Diverging the two would let ``add``
+    write a marker into a file the scanner will never see, breaking id
+    allocation.
+
+    :param Path path: Filesystem path to classify.
+    """
+    return path.suffix in SOURCE_SUFFIXES or path.name in SOURCE_FILENAMES
 
 
 @dataclass(frozen=True)
@@ -103,7 +147,7 @@ def _iter_scannable_files(root: Path, unreadable_paths: list[Path]):
         directory_path = Path(directory)
         for file_name in file_names:
             path = directory_path / file_name
-            if path.suffix in SKIPPED_SUFFIXES:
+            if not is_source_file(path):
                 continue
             try:
                 if path.is_file():

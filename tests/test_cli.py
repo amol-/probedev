@@ -344,6 +344,33 @@ def test_probe_add_records_first_evolution_when_plan_is_empty(tmp_path: Path, ca
     assert (tmp_path / "src" / "tool.py").read_text(encoding="utf-8") == f"# {marker}010): Add the first evolution.\n"
 
 
+def test_probe_add_refuses_non_source_target_path(tmp_path: Path, capsys) -> None:
+    """``add`` must refuse non-source targets so the allocator stays sound.
+
+    The scanner's allowlist decides which files contribute to the plan. If
+    ``add`` wrote a marker into a file the scanner ignores (e.g. ``.toml``),
+    later ``add`` invocations would be blind to that marker and allocate the
+    same id again. Symmetric contract enforcement at the ``add`` boundary
+    prevents the allocator from silently producing duplicate ids.
+    """
+    marker = "TODO" + "(EVO-"
+    config = tmp_path / "config.toml"
+
+    exit_code = main(["--root", str(tmp_path), "add", "config.toml", "First."])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert output.startswith("Could not add evolution: ")
+    assert "not a scannable source file" in output
+    assert not config.exists()
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py", "Second."])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+    assert (tmp_path / "tool.py").read_text(encoding="utf-8") == f"# {marker}010): Second.\n"
+
+
 def test_probe_show_prints_editor_command_before_launch(project_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     editor_calls: list[list[str]] = []
     out = TrackingOutput()
@@ -442,3 +469,37 @@ def test_list_and_identify_agree_on_candidates_across_languages_and_shapes(tmp_p
     assert {path.name for path, _ in list_candidates} == {"tool.py", "main.go"}
     tool_lines = {line for path, line in list_candidates if path.name == "tool.py"}
     assert tool_lines == {1, 2, 3, 4}
+
+
+def test_probe_plan_ignores_non_source_extensions(tmp_path: Path) -> None:
+    """Files outside the programming-language allowlist must not be scanned.
+
+    Product contracts (``.feature``), config files, and other non-source
+    text files can legitimately contain ``TODO(EVO-...)``-shaped lines
+    (quoted examples, specs about the marker syntax itself). Those must
+    not appear as pending evolutions.
+    """
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "spec.feature").write_text(f"# {marker}010): Not a source file.\n", encoding="utf-8")
+    (tmp_path / "notes.unknownext").write_text(f"# {marker}020): Unknown extension.\n", encoding="utf-8")
+    (tmp_path / "tool.py").write_text(f"# {marker}030): A real source marker.\n", encoding="utf-8")
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    scanned = {evolution.path.name for evolution in plan.evolutions}
+    assert scanned == {"tool.py"}
+
+
+def test_probe_plan_includes_recognized_extensionless_source_files(tmp_path: Path) -> None:
+    """Extensionless build/infra files like ``Makefile`` are real source.
+
+    They must be scanned for markers even though they have no suffix.
+    """
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "Makefile").write_text(f"# {marker}010): A marker in a Makefile.\n", encoding="utf-8")
+    (tmp_path / "Dockerfile").write_text(f"# {marker}020): A marker in a Dockerfile.\n", encoding="utf-8")
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    scanned = {evolution.path.name for evolution in plan.evolutions}
+    assert scanned == {"Makefile", "Dockerfile"}

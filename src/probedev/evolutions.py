@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from probedev.plan import ProbePlan, sequence_name
+from probedev.scanning import is_source_file
 
 
 @dataclass(frozen=True)
@@ -43,8 +44,17 @@ class EvolutionRecorder:
         if not description:
             raise ValueError("evolution description cannot be empty")
 
-        marker = self._next_marker(plan)
         path = self._target_path(root, request)
+        # Contract symmetry with the scanner: the scanner only sees files
+        # the allowlist accepts, so the allocator's next-id is only accurate
+        # over those files. Writing a marker into any other file would hide
+        # it from later scans and cause duplicate id allocation.
+        if not is_source_file(path):
+            raise ValueError(
+                f"target path is not a scannable source file: {request.path}; "
+                "use a recognized source extension (e.g. .py, .go) or filename (e.g. Makefile)."
+            )
+        marker = self._next_marker(plan)
         line = self._write_marker(path, marker, description)
         return AddedEvolution(marker, description, path, line)
 
