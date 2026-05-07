@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+
+from probedev.scanning import FileCandidates, scan_candidates
 
 
 TODO_RE = re.compile(r"TODO\((EVO-\d{3})\):\s*(.+)")
-TODO_CANDIDATE_RE = re.compile(r"TODO\(EVO")
-SKIPPED_DIRS = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", "dist", "build"}
-SKIPPED_SUFFIXES = {".md"}
 
 
 @dataclass(frozen=True)
@@ -94,93 +91,121 @@ class ProbePlanParser:
 
         :param Path root: Project root to scan.
         """
-        evolutions = []
-        malformed = []
-        unreadable_paths = []
-        for path in self._iter_scannable_files(root, unreadable_paths):
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                unreadable_paths.append(path)
-                continue
-            except UnicodeDecodeError:
-                continue
-            line_index = 0
-            while line_index < len(lines):
-                line_number = line_index + 1
-                line_index = self._append_marker(evolutions, malformed, path, line_number, lines, line_index)
+        evolutions: list[Evolution] = []
+        malformed: list[MalformedEvolution] = []
+        scan = scan_candidates(root)
+        for file in scan.files:
+            self._classify_file(file, evolutions, malformed)
         return ProbePlan(
             sorted(evolutions, key=lambda item: (sequence_name(item.marker), item.marker, str(item.path), item.line)),
             sorted(malformed, key=lambda item: (str(item.path), item.line)),
-            sorted(unreadable_paths),
+            list(scan.unreadable_paths),
         )
 
-    def _append_marker(
+    def _classify_file(
         self,
+        file: FileCandidates,
         evolutions: list[Evolution],
         malformed: list[MalformedEvolution],
-        path: Path,
-        line_number: int,
-        lines: list[str],
-        line_index: int,
-    ) -> int:
-        line = lines[line_index]
-        if not self._is_comment_marker_candidate(line):
-            return line_index + 1
-        if match := TODO_RE.search(line):
-            continuation_lines, next_index = self._collect_continuation_lines(lines, line_index + 1)
-            evolutions.append(Evolution(match.group(1), match.group(2).strip(), path, line_number, continuation_lines))
-            return next_index
-        else:
-            malformed.append(MalformedEvolution(line.strip(), path, line_number))
-            return line_index + 1
+    ) -> None:
+        # Candidates arrive in line order. Each well-formed marker consumes
+        # continuation lines up to (but not including) the next candidate so
+        # continuation scanning never crosses into the next evolution.
+        candidates = list(file.candidates)
+        for index, candidate in enumerate(candidates):
+            next_line = candidates[index + 1].line if index + 1 < len(candidates) else len(file.lines) + 1
+            match = TODO_RE.search(candidate.text)
+            if match is None:
+                malformed.append(MalformedEvolution(candidate.text.strip(), file.path, candidate.line))
+                continue
+            continuation = self._collect_continuation_lines(
+                file.lines, candidate.line, next_line, self._marker_line_prefix(candidate.text)
+            )
+            evolutions.append(
+                Evolution(match.group(1), match.group(2).strip(), file.path, candidate.line, continuation)
+            )
 
-    def _collect_continuation_lines(self, lines: list[str], start_index: int) -> tuple[tuple[str, ...], int]:
-        """Collect adjacent comment lines that complete one evolution description."""
-        continuation = []
-        line_index = start_index
-        while line_index < len(lines):
-            line = lines[line_index]
-            if self._is_comment_marker_candidate(line):
-                break
-            text = self._comment_text(line)
+    def _collect_continuation_lines(
+        self,
+        lines: tuple[str, ...],
+        marker_line: int,
+        next_candidate_line: int,
+        marker_prefix: str,
+    ) -> tuple[str, ...]:
+        """Collect adjacent lines that share the marker's line prefix.
+
+        A line continues the evolution description when it starts with the
+        same leading prefix as the marker line — whether that prefix is a
+        ``# `` comment lead, a ``// `` lead, or plain indentation inside a
+        docstring. This keeps the parser language-agnostic without needing a
+        comment-syntax table. Scanning stops at the next marker candidate so
+        continuations never cross into another evolution.
+        """
+        continuation: list[str] = []
+        for index in range(marker_line, next_candidate_line - 1):
+            text = self._continuation_text(lines[index], marker_prefix)
             if text is None:
                 break
             continuation.append(text)
-            line_index += 1
-        return tuple(continuation), line_index
+        return tuple(continuation)
 
-    def _comment_text(self, line: str) -> str | None:
-        stripped = line.lstrip()
-        for prefix in ("#", "//", "/*", "*", "<!--"):
+    def _marker_line_prefix(self, line: str) -> str:
+        """Return the leading whitespace + optional comment lead of a marker line."""
+        return line[: len(line) - len(line.lstrip())] + self._comment_lead(line.lstrip())
+
+    def _continuation_text(self, line: str, marker_prefix: str) -> str | None:
+        """Return the stripped continuation text, or None if the line is not a continuation.
+
+        Accepts two prefix shapes so that block-style comments work:
+        the original marker prefix (e.g. ``# ``, ``// ``, indentation for
+        docstrings), and the block-continuation variant of a ``/* `` marker
+        line which opens subsequent lines with `` * ``.
+        """
+        remainder = self._strip_prefix(line, marker_prefix)
+        if remainder is None:
+            block_prefix = self._block_continuation_prefix(marker_prefix)
+            if block_prefix is None:
+                return None
+            remainder = self._strip_prefix(line, block_prefix)
+            if remainder is None:
+                return None
+        stripped = remainder.strip().removesuffix("*/").removesuffix("-->").strip()
+        if not stripped:
+            return None
+        # Treat bare docstring/block closers as end-of-continuation, not
+        # as a description line. This keeps language-agnostic scanning
+        # from swallowing the closing fence of a multiline string.
+        if stripped in {'"""', "'''"}:
+            return None
+        return stripped
+
+    def _strip_prefix(self, line: str, prefix: str) -> str | None:
+        if not line.startswith(prefix):
+            return None
+        return line[len(prefix):]
+
+    def _block_continuation_prefix(self, marker_prefix: str) -> str | None:
+        """Derive ``/* ... *`` block continuation lead from a marker prefix.
+
+        When the marker opened with ``    /* `` the natural continuation is
+        ``     * `` — same indent, then ``*`` aligned under the ``*`` of
+        ``/*``. The probe recognizes exactly that shape.
+        """
+        indent_len = len(marker_prefix) - len(marker_prefix.lstrip())
+        lead = marker_prefix[indent_len:]
+        if not lead.startswith("/*"):
+            return None
+        indent = marker_prefix[:indent_len]
+        return indent + " " + lead[1:]
+
+    def _comment_lead(self, stripped: str) -> str:
+        for prefix in ("///", "//", "#", "/*", "*", "<!--"):
             if stripped.startswith(prefix):
-                text = stripped.removeprefix(prefix).strip()
-                # TODO(EVO-140): Replace heuristic continuation stripping with a shared
-                # comment-style table that covers each scannable source type.
-                return text.removesuffix("*/").removesuffix("-->").strip()
-        return None
-
-    def _iter_scannable_files(self, root: Path, unreadable_paths: list[Path]) -> Iterable[Path]:
-        def record_unreadable(error: OSError) -> None:
-            if error.filename:
-                unreadable_paths.append(Path(error.filename))
-
-        for directory, dir_names, file_names in os.walk(root, onerror=record_unreadable):
-            dir_names[:] = [name for name in dir_names if name not in SKIPPED_DIRS]
-            directory_path = Path(directory)
-            for file_name in file_names:
-                path = directory_path / file_name
-                if path.suffix in SKIPPED_SUFFIXES:
-                    continue
-                try:
-                    if path.is_file():
-                        yield path
-                except OSError:
-                    unreadable_paths.append(path)
-
-    def _is_comment_marker_candidate(self, line: str) -> bool:
-        stripped = line.lstrip()
-        return stripped.startswith(("#", "//", "/*", "*", "<!--")) and bool(TODO_CANDIDATE_RE.search(stripped))
+                lead = stripped[: len(prefix)]
+                rest = stripped[len(prefix):]
+                trailing_space = len(rest) - len(rest.lstrip(" "))
+                return lead + " " * trailing_space
+        return ""
 
 
 def sequence_name(marker: str) -> str:

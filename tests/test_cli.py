@@ -10,6 +10,7 @@ import pytest
 
 import probedev.show
 from probedev.cli import Workspace, build_parser, main, run_show
+from probedev.identification import EvolutionIdentifier
 from probedev.plan import ProbePlanParser
 
 
@@ -75,14 +76,27 @@ def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
     assert "warn MALFORMED tool.py:1" in capsys.readouterr().out
 
 
-def test_probe_list_ignores_marker_text_inside_string_literals(tmp_path: Path, capsys) -> None:
+def test_probe_list_discovers_markers_inside_docstrings(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
     source = tmp_path / "tool.py"
-    source.write_text('message = "TODO(EVO-010): Not a real marker."\n', encoding="utf-8")
+    source.write_text(
+        "\n".join(
+            [
+                "def handler():",
+                '    """Do the thing.',
+                "",
+                f"    {marker}010): Honour the env override once the parser stabilizes.",
+                '    """',
+                "    return None",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     exit_code = main(["--root", str(tmp_path), "list"])
 
-    assert exit_code == 1
-    assert capsys.readouterr().out == "No TODO(EVO-...) evolutions found.\n"
+    assert exit_code == 0
+    assert "next EVO-010 line 4 Honour the env override once the parser stabilizes." in capsys.readouterr().out
 
 
 def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
@@ -247,7 +261,7 @@ def test_probe_add_refuses_to_allocate_from_incomplete_plan(
     assert capsys.readouterr().out == (
         "Could not add evolution: plan scan skipped unreadable files; fix file access and try again.\n"
     )
-    assert target.read_text(encoding="utf-8") == "# TODO(EVO-010): Existing visible step.\n"
+    assert target.read_text(encoding="utf-8") == f"# {marker}010): Existing visible step.\n"
 
 
 def test_probe_add_refuses_to_allocate_when_directory_scan_is_incomplete(
@@ -276,10 +290,11 @@ def test_probe_add_refuses_to_allocate_when_directory_scan_is_incomplete(
     assert capsys.readouterr().out == (
         "Could not add evolution: plan scan skipped unreadable files; fix file access and try again.\n"
     )
-    assert target.read_text(encoding="utf-8") == "# TODO(EVO-010): Existing visible step.\n"
+    assert target.read_text(encoding="utf-8") == f"# {marker}010): Existing visible step.\n"
 
 
 def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
     exit_code = main(["--root", str(project_root), "add", "tool.py", "Add README-aware refinement."])
 
     assert exit_code == 0
@@ -289,13 +304,14 @@ def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, caps
     assert "- description: Add README-aware refinement." in output
     assert "Run probedev list" in output
     assert (project_root / "tool.py").read_text(encoding="utf-8").splitlines() == [
-        "# TODO(EVO-010): Add the first step.",
+        f"# {marker}010): Add the first step.",
         "",
-        "# TODO(EVO-020): Add README-aware refinement.",
+        f"# {marker}020): Add README-aware refinement.",
     ]
 
 
 def test_probe_add_reports_actual_line_when_appending_to_existing_path(project_root: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
     target = project_root / "src" / "tool.py"
     target.parent.mkdir()
     target.write_text("print('ready')\n", encoding="utf-8")
@@ -315,16 +331,17 @@ def test_probe_add_reports_actual_line_when_appending_to_existing_path(project_r
     assert target.read_text(encoding="utf-8").splitlines() == [
         "print('ready')",
         "",
-        "# TODO(EVO-020): Add an appended evolution.",
+        f"# {marker}020): Add an appended evolution.",
     ]
 
 
 def test_probe_add_records_first_evolution_when_plan_is_empty(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
     exit_code = main(["--root", str(tmp_path), "add", "src/tool.py", "Add the first evolution."])
 
     assert exit_code == 0
     assert "- marker: EVO-010" in capsys.readouterr().out
-    assert (tmp_path / "src" / "tool.py").read_text(encoding="utf-8") == "# TODO(EVO-010): Add the first evolution.\n"
+    assert (tmp_path / "src" / "tool.py").read_text(encoding="utf-8") == f"# {marker}010): Add the first evolution.\n"
 
 
 def test_probe_show_prints_editor_command_before_launch(project_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -369,3 +386,58 @@ def test_probe_show_launch_exception_does_not_print_opened_success(
     assert "Could not show evolution: code" in out.getvalue()
     assert "Opened evolution" not in out.getvalue()
     assert out.flushed
+
+
+def test_list_and_identify_agree_on_candidates_across_languages_and_shapes(tmp_path: Path) -> None:
+    """Pin the EVO-080 invariant observably.
+
+    The invariant is that ``probedev list`` and ``probedev identify`` discover
+    the same set of marker candidates regardless of source language or marker
+    shape. Verified against public command output, not the private scanner
+    seam, so it catches drift anywhere downstream of ``scan_candidates``
+    (per-command filters, language gates, regex tweaks).
+    """
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "README.md").write_text("Tool intent\n", encoding="utf-8")
+    # Four candidate shapes across two languages: valid, invalid-id,
+    # placeholder, and unindexed. A regex or filter regression that affects
+    # any one shape — or a per-command language gate that hides the Go
+    # file — breaks the equality below.
+    (tmp_path / "tool.py").write_text(
+        "\n".join(
+            [
+                f"# {marker}010): A valid marker.",
+                f"# {marker}10): Missing zero padding.",
+                "# TODO" + "(EVO-XXX): Placeholder id.",
+                "# TODO" + "(EVO): Needs an id.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    # Malformed on purpose — identify must rewrite it. If identify ever
+    # gains a per-language filter that drops non-Python files, this line
+    # stays malformed and identify's observable output set loses it.
+    (tmp_path / "main.go").write_text(f"// {marker}20): A Go marker needing an id.\n", encoding="utf-8")
+
+    # List: scan and collect (path, line) for every candidate list observes,
+    # whether well-formed (evolutions) or not (malformed).
+    plan = ProbePlanParser().scan(tmp_path)
+    list_candidates = {(item.path, item.line) for item in plan.evolutions} | {
+        (item.path, item.line) for item in plan.malformed
+    }
+
+    # Identify: apply the command and collect the observable (path, line)
+    # set — markers it rewrote, plus already-valid markers it left alone
+    # (those surface through ProbePlanParser after identify runs).
+    result = EvolutionIdentifier().identify(tmp_path)
+    post_plan = ProbePlanParser().scan(tmp_path)
+    identify_candidates = {(item.path, item.line) for item in result.identified} | {
+        (evolution.path, evolution.line) for evolution in post_plan.evolutions
+    }
+
+    assert list_candidates == identify_candidates
+    # Guard against both commands silently seeing nothing: all four shapes
+    # on tool.py plus the Go marker must be represented.
+    assert {path.name for path, _ in list_candidates} == {"tool.py", "main.go"}
+    tool_lines = {line for path, line in list_candidates if path.name == "tool.py"}
+    assert tool_lines == {1, 2, 3, 4}

@@ -5,10 +5,9 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from probedev.plan import SKIPPED_DIRS, SKIPPED_SUFFIXES
+from probedev.scanning import CANDIDATE_RE, scan_candidates
 
 
-MARKER_RE = re.compile(r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*(?P<description>.*)")
 VALID_MARKER_RE = re.compile(r"EVO-\d{3}")
 
 
@@ -76,31 +75,22 @@ class EvolutionIdentifier:
         for path in {path for path, _line in replacements}:
             self._rewrite_file(path, replacements)
 
-        # TODO(EVO-080): Split candidate scanning into a shared parser so list and identify agree on every marker candidate shape.
         # TODO(EVO-090): Preserve file newline style and permissions when identify rewrites source files.
         # TODO(EVO-100): Report unchanged valid markers and rewritten conflicts separately for clearer command output.
         return IdentifyResult(identified)
 
     def _scan_candidates(self, root: Path) -> list[EvolutionCandidate]:
-        candidates = []
-        for path in self._iter_scannable_files(root):
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except UnicodeDecodeError:
-                continue
-            for line_number, line in enumerate(lines, start=1):
-                if not self._is_comment_candidate(line):
-                    continue
-                if match := MARKER_RE.search(line):
-                    candidates.append(
-                        EvolutionCandidate(
-                            match.group("token"),
-                            match.group("description").strip(),
-                            path,
-                            line_number,
-                            line,
-                        )
-                    )
+        candidates = [
+            EvolutionCandidate(
+                shared.token,
+                shared.description,
+                shared.path,
+                shared.line,
+                shared.text,
+            )
+            for file in scan_candidates(root).files
+            for shared in file.candidates
+        ]
         return sorted(candidates, key=lambda item: (str(item.path), item.line))
 
     def _kept_valid_ids(self, candidates: list[EvolutionCandidate]) -> set[str]:
@@ -143,22 +133,10 @@ class EvolutionIdentifier:
                 updated.append(line)
             else:
                 updated.append(
-                    MARKER_RE.sub(
+                    CANDIDATE_RE.sub(
                         lambda match: f"TODO({marker}): {match.group('description').strip()}",
                         line,
                         count=1,
                     )
                 )
         path.write_text("\n".join(updated) + "\n", encoding="utf-8")
-
-    def _iter_scannable_files(self, root: Path) -> list[Path]:
-        return [
-            path
-            for path in root.rglob("*")
-            if not any(part in SKIPPED_DIRS for part in path.parts)
-            if path.is_file() and path.suffix not in SKIPPED_SUFFIXES
-        ]
-
-    def _is_comment_candidate(self, line: str) -> bool:
-        stripped = line.lstrip()
-        return stripped.startswith(("#", "//", "/*", "*", "<!--")) and "TODO(EVO" in stripped
