@@ -37,6 +37,9 @@ def marker_prefix() -> str:
     return "TODO" + "(EVO-"
 
 
+# TODO(EVO-170): Route every remaining marker-shaped fixture literal in this file through `marker_prefix` (or the split-string convention) so `probedev list` stops reporting BDD fixture strings as DUPLICATE/MALFORMED evolutions on self-scan.
+
+
 def write_readme(root: Path) -> None:
     root.joinpath("README.md").write_text("Tool intent\n", encoding="utf-8")
 

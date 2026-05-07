@@ -17,6 +17,7 @@ CANDIDATE_RE = re.compile(r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*(?P<description
 
 SKIPPED_DIRS = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", "dist", "build"}
 SKIPPED_SUFFIXES = {".md"}
+# TODO(EVO-180): Switch file selection from the current wide denylist to an allowlist of known programming-language source extensions plus recognized extensionless source files (e.g. Makefile, Dockerfile) — language-agnostic parsing does not imply scanning every text file, and the allowlist is what keeps non-source files like .feature and lockfiles out of the scan.
 
 
 @dataclass(frozen=True)
