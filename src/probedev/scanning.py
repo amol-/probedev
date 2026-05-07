@@ -12,6 +12,7 @@ from pathlib import Path
 # description text so that both ``probedev list`` and ``probedev identify``
 # agree on the shape of every candidate. Public so that ``identify``'s
 # rewrite step can reuse the same pattern when substituting new ids.
+# TODO(EVO-150): Replace the greedy description capture so two TODO(EVO-...) markers on the same line are both discovered instead of collapsing into one.
 CANDIDATE_RE = re.compile(r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*(?P<description>.*)")
 
 SKIPPED_DIRS = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", "dist", "build"}

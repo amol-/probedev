@@ -15,6 +15,7 @@ Feature: List ordered evolutions
     - List reports malformed marker candidates.
     - List warns about scannable files that could not be read.
     - Markdown and ignored workspace directories are not part of the active plan scan.
+    # TODO(EVO-160): Pin the language-agnostic / shared-scanner contract in this feature so list and identify are specified to discover the same marker candidates across languages and marker shapes (comment, docstring, literal).
 
   @id:F-COMMANDS-LIST-S001
   Scenario: Pending evolutions are grouped by file

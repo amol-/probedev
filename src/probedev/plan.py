@@ -151,6 +151,7 @@ class ProbePlanParser:
 
     def _marker_line_prefix(self, line: str) -> str:
         """Return the leading whitespace + optional comment lead of a marker line."""
+        # TODO(EVO-140): Guard continuation-line collection when the marker line has an empty prefix (column-0 marker in a plain-text file) so unrelated following lines are not swallowed as continuations.
         return line[: len(line) - len(line.lstrip())] + self._comment_lead(line.lstrip())
 
     def _continuation_text(self, line: str, marker_prefix: str) -> str | None:
