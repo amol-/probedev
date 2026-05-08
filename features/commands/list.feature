@@ -69,3 +69,10 @@ Feature: List ordered evolutions
     When the developer runs `probedev list`
     Then the system prints only the non-ignored evolution marker
     And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S008
+  Scenario: List and identify share source marker candidate discovery
+    Given a workspace with evolution marker candidates across source languages and marker shapes
+    When the developer runs `probedev list` and then `probedev identify`
+    Then list and identify observe the same source marker candidate locations
+    And the command succeeds.

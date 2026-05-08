@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import shlex
 from typing import Any
@@ -25,6 +25,8 @@ class CommandContext:
     exit_code: int | None = None
     output: str = ""
     editor_calls: list[list[str]] | None = None
+    command_outputs: dict[str, str] = field(default_factory=dict)
+    command_exit_codes: dict[str, int] = field(default_factory=dict)
 
 
 @pytest.fixture
@@ -151,6 +153,25 @@ def workspace_with_ignored_marker_shaped_fixture_text(
     )
 
 
+@given("a workspace with evolution marker candidates across source languages and marker shapes")
+def workspace_with_cross_language_candidate_shapes(
+    command_context: CommandContext,
+    marker_prefix: str,
+) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                f"# {marker_prefix}010): A valid marker.",
+                f"# {marker_prefix}10): Missing zero padding.",
+                "# TODO" + "(EVO-XXX): Placeholder id.",
+                "# TODO" + "(EVO): Needs an id.",
+            ]
+        ),
+    )
+    write_source(command_context.root, f"// {marker_prefix}20): A Go marker needing an id.\n", "main.go")
+
+
 # probedev: ignore-start
 @given("a workspace with pending evolutions that have no ids")
 def workspace_with_missing_evolution_ids(command_context: CommandContext) -> None:
@@ -269,6 +290,26 @@ def workspace_has_default_editor(monkeypatch: pytest.MonkeyPatch) -> None:
 @when("the developer runs `probedev list`")
 def run_list(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["list"])
+
+
+@when("the developer runs `probedev list` and then `probedev identify`")
+def run_list_then_identify(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["list"])
+    assert command_context.exit_code is not None
+    command_context.command_outputs["list"] = command_context.output
+    command_context.command_exit_codes["list"] = command_context.exit_code
+
+    run_probe(command_context, capsys, ["identify"])
+    assert command_context.exit_code is not None
+    command_context.command_outputs["identify"] = command_context.output
+    command_context.command_exit_codes["identify"] = command_context.exit_code
+
+    run_probe(command_context, capsys, ["list"])
+    assert command_context.exit_code is not None
+    command_context.command_outputs["post-identify-list"] = command_context.output
+    command_context.command_exit_codes["post-identify-list"] = command_context.exit_code
+    command_context.exit_code = command_context.command_exit_codes["identify"]
+    command_context.output = command_context.command_outputs["identify"]
 
 
 @when("the developer runs `probedev add` with a file and new evolution description")
@@ -559,6 +600,45 @@ def assert_only_non_ignored_marker_printed(command_context: CommandContext) -> N
     assert "EVO-010 line 1 Keep the real marker." in command_context.output
     assert "EVO-020" not in command_context.output
     assert "EVO-030" not in command_context.output
+
+
+@then("list and identify observe the same source marker candidate locations")
+def assert_list_and_identify_candidate_locations_agree(command_context: CommandContext) -> None:
+    def list_locations(output: str, *, include_malformed: bool) -> set[tuple[str, int]]:
+        locations: set[tuple[str, int]] = set()
+        current_path: str | None = None
+        for line in output.splitlines():
+            if line.startswith("warn MALFORMED "):
+                if include_malformed:
+                    path_line = line.split()[2]
+                    path, line_number = path_line.rsplit(":", 1)
+                    locations.add((path, int(line_number)))
+                continue
+            if line and not line.startswith(" ") and not line.startswith("warn ") and line != "Pending evolutions":
+                current_path = line
+                continue
+            if current_path and " line " in line:
+                line_number = line.split(" line ", 1)[1].split()[0]
+                locations.add((current_path, int(line_number)))
+        return locations
+
+    def identify_locations(output: str) -> set[tuple[str, int]]:
+        locations: set[tuple[str, int]] = set()
+        for line in output.splitlines():
+            if line.startswith("  location: "):
+                path, line_number = line.removeprefix("  location: ").rsplit(":", 1)
+                locations.add((path, int(line_number)))
+        return locations
+
+    list_candidates = list_locations(command_context.command_outputs["list"], include_malformed=True)
+    identify_candidates = identify_locations(command_context.command_outputs["identify"]) | list_locations(
+        command_context.command_outputs["post-identify-list"], include_malformed=False
+    )
+
+    assert command_context.command_exit_codes["list"] == 0
+    assert command_context.command_exit_codes["post-identify-list"] == 0
+    assert list_candidates == identify_candidates
+    assert list_candidates == {("tool.py", 1), ("tool.py", 2), ("tool.py", 3), ("tool.py", 4), ("main.go", 1)}
 
 
 @then("no new marker is appended to the requested file")

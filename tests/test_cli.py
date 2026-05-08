@@ -778,7 +778,6 @@ def test_probe_identify_rewrites_same_line_candidates_needing_ids(tmp_path: Path
     )
 
 
-# TODO(EVO-160): Pin the language-agnostic / shared-scanner contract in a BDD scenario on list.feature so the behavior covered by the test below is also specified in the product-visible spec, not only in pytest.
 def test_list_and_identify_agree_on_candidates_across_languages_and_shapes(tmp_path: Path) -> None:
     """Pin the EVO-080 invariant observably.
 
