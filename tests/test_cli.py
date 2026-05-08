@@ -12,7 +12,7 @@ import probedev.show
 from probedev.cli import Workspace, build_parser, main, run_show
 from probedev.identification import EvolutionIdentifier
 from probedev.plan import ProbePlanParser
-from probedev.scanning import scan_candidates
+from probedev.scanning import SOURCE_FILENAMES, SOURCE_SUFFIXES, scan_candidates
 
 
 class TrackingOutput(StringIO):
@@ -99,6 +99,23 @@ def test_probe_list_prints_two_markers_on_one_source_line(tmp_path: Path, capsys
         "tool.py",
         "  next EVO-010 line 1 Add the first step.",
         "       EVO-020 line 1 Add the second step.",
+    ]
+
+
+def test_scan_candidates_discovers_two_ocaml_markers_on_one_line(tmp_path: Path) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.ml"
+    source.write_text(
+        f"(* {marker}010): Add the first step. *) (* {marker}020): Add the second step. *)\n",
+        encoding="utf-8",
+    )
+
+    scan = scan_candidates(tmp_path)
+    candidates = [candidate for file in scan.files for candidate in file.candidates]
+
+    assert [(candidate.token, candidate.description, candidate.line) for candidate in candidates] == [
+        ("EVO-010", "Add the first step.", 1),
+        ("EVO-020", "Add the second step.", 1),
     ]
 
 
@@ -211,6 +228,58 @@ def test_probe_list_prints_multiline_evolution_description_with_aligned_continua
         "  next EVO-010 line 1 recent tracked item payload validation is repetitive;",
         "                      consider a structured parser/helper that preserves these precise",
         "                      error messages while reducing the long sequence of type checks.",
+    ]
+
+
+def test_probe_list_does_not_swallow_ocaml_code_after_one_line_marker(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.ml"
+    source.write_text(
+        "\n".join(
+            [
+                f"(* {marker}010): Add the OCaml step. *)",
+                "let value = 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.ml",
+        "  next EVO-010 line 1 Add the OCaml step.",
+    ]
+
+
+def test_probe_list_does_not_swallow_clojure_code_after_line_comment_marker(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.clj"
+    source.write_text(
+        "\n".join(
+            [
+                f";; {marker}010): Add the Clojure step.",
+                "(def value 1)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.clj",
+        "  next EVO-010 line 1 Add the Clojure step.",
     ]
 
 
@@ -367,6 +436,137 @@ def test_probe_add_refuses_to_allocate_with_duplicate_default_sequence_marker(
         "EVO-010\n"
     )
     assert target.read_text(encoding="utf-8") == original
+
+
+ADD_COMMENT_STYLE_SUFFIX_CASES = [
+    (".py", "#", ""),
+    (".pyi", "#", ""),
+    (".go", "//", ""),
+    (".rs", "//", ""),
+    (".c", "//", ""),
+    (".h", "//", ""),
+    (".cc", "//", ""),
+    (".cpp", "//", ""),
+    (".hh", "//", ""),
+    (".hpp", "//", ""),
+    (".java", "//", ""),
+    (".kt", "//", ""),
+    (".kts", "//", ""),
+    (".rb", "#", ""),
+    (".php", "//", ""),
+    (".js", "//", ""),
+    (".jsx", "//", ""),
+    (".ts", "//", ""),
+    (".tsx", "//", ""),
+    (".mjs", "//", ""),
+    (".cjs", "//", ""),
+    (".sh", "#", ""),
+    (".bash", "#", ""),
+    (".zsh", "#", ""),
+    (".swift", "//", ""),
+    (".cs", "//", ""),
+    (".scala", "//", ""),
+    (".clj", ";;", ""),
+    (".cljs", ";;", ""),
+    (".hs", "--", ""),
+    (".ex", "#", ""),
+    (".exs", "#", ""),
+    (".erl", "%", ""),
+    (".lua", "--", ""),
+    (".pl", "#", ""),
+    (".pm", "#", ""),
+    (".nim", "#", ""),
+    (".cr", "#", ""),
+    (".ml", "(*", "*)"),
+    (".mli", "(*", "*)"),
+    (".fs", "//", ""),
+    (".fsx", "//", ""),
+    (".dart", "//", ""),
+]
+ADD_COMMENT_STYLE_FILENAME_CASES = [
+    ("Makefile", "#", ""),
+    ("Dockerfile", "#", ""),
+    ("Rakefile", "#", ""),
+    ("Gemfile", "#", ""),
+    ("Jenkinsfile", "//", ""),
+]
+
+
+def test_probe_add_comment_style_cases_cover_scanner_allowlist() -> None:
+    assert {suffix for suffix, _prefix, _suffix in ADD_COMMENT_STYLE_SUFFIX_CASES} == SOURCE_SUFFIXES
+    assert {name for name, _prefix, _suffix in ADD_COMMENT_STYLE_FILENAME_CASES} == SOURCE_FILENAMES
+
+
+@pytest.mark.parametrize(("suffix", "prefix", "comment_suffix"), ADD_COMMENT_STYLE_SUFFIX_CASES)
+def test_probe_add_uses_language_comment_style_for_scannable_suffix(
+    tmp_path: Path,
+    capsys,
+    suffix: str,
+    prefix: str,
+    comment_suffix: str,
+) -> None:
+    marker = "TODO" + "(EVO-"
+
+    exit_code = main(["--root", str(tmp_path), "add", f"target{suffix}", "Add a style-specific evolution."])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+    assert (tmp_path / f"target{suffix}").read_text(encoding="utf-8") == (
+        f"{prefix} {marker}010): Add a style-specific evolution."
+        f"{f' {comment_suffix}' if comment_suffix else ''}\n"
+    )
+
+
+@pytest.mark.parametrize(("file_name", "prefix", "comment_suffix"), ADD_COMMENT_STYLE_FILENAME_CASES)
+def test_probe_add_uses_language_comment_style_for_scannable_filename(
+    tmp_path: Path,
+    capsys,
+    file_name: str,
+    prefix: str,
+    comment_suffix: str,
+) -> None:
+    marker = "TODO" + "(EVO-"
+
+    exit_code = main(["--root", str(tmp_path), "add", file_name, "Add a filename-specific evolution."])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+    assert (tmp_path / file_name).read_text(encoding="utf-8") == (
+        f"{prefix} {marker}010): Add a filename-specific evolution."
+        f"{f' {comment_suffix}' if comment_suffix else ''}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("suffix", "prefix", "comment_suffix"),
+    [case for case in ADD_COMMENT_STYLE_SUFFIX_CASES if case[2]],
+)
+def test_probe_add_suffix_style_marker_lists_requested_description(
+    tmp_path: Path,
+    capsys,
+    suffix: str,
+    prefix: str,
+    comment_suffix: str,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    target_name = f"target{suffix}"
+
+    exit_code = main(["--root", str(tmp_path), "add", target_name, "Add a suffix-delimited evolution."])
+
+    assert exit_code == 0
+    assert (tmp_path / target_name).read_text(encoding="utf-8") == (
+        f"{prefix} {marker}010): Add a suffix-delimited evolution. {comment_suffix}\n"
+    )
+    capsys.readouterr()
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        target_name,
+        "  next EVO-010 line 1 Add a suffix-delimited evolution.",
+    ]
 
 
 def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, capsys) -> None:

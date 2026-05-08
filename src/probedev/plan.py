@@ -201,7 +201,7 @@ class ProbePlanParser:
         return indent + " " + lead[1:]
 
     def _comment_lead(self, stripped: str) -> str:
-        for prefix in ("///", "//", "#", "/*", "*", "<!--"):
+        for prefix in ("///", "//", "#", ";;", "--", "%", "/*", "(*", "*", "<!--"):
             if stripped.startswith(prefix):
                 lead = stripped[: len(prefix)]
                 rest = stripped[len(prefix):]

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from probedev.plan import ProbePlan, sequence_name
-from probedev.scanning import is_source_file
+from probedev.scanning import SOURCE_FILENAMES, SOURCE_SUFFIXES, is_source_file
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,10 @@ class EvolutionRecorder:
 
     def _write_marker(self, path: Path, marker: str, description: str) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
-        marker_line = f"{self._comment_prefix(path)} TODO({marker}): {description}"
+        comment_style = self._comment_style(path)
+        marker_line = f"{comment_style.prefix} TODO({marker}): {description}"
+        if comment_style.suffix:
+            marker_line = f"{marker_line} {comment_style.suffix}"
         if not path.exists():
             # TODO(EVO-020): Confirm whether add should create missing files or require the target file to already exist.
             path.write_text(f"{marker_line}\n", encoding="utf-8")
@@ -110,8 +113,48 @@ class EvolutionRecorder:
     def _insertion_index(self, lines: list[str]) -> int:
         return len(lines) + (1 if lines and lines[-1].strip() else 0)
 
-    def _comment_prefix(self, path: Path) -> str:
-        # TODO(EVO-040): Replace suffix guessing with a small language comment-style table that covers every scannable source type.
-        if path.suffix in {".go", ".js", ".ts", ".java", ".c", ".cpp", ".rs"}:
-            return "//"
-        return "#"
+    def _comment_style(self, path: Path) -> _CommentStyle:
+        if path.name in _COMMENT_STYLE_BY_FILENAME:
+            return _COMMENT_STYLE_BY_FILENAME[path.name]
+        if path.suffix in _COMMENT_STYLE_BY_SUFFIX:
+            return _COMMENT_STYLE_BY_SUFFIX[path.suffix]
+        if path.suffix in SOURCE_SUFFIXES or path.name in SOURCE_FILENAMES:
+            raise ValueError(f"no comment style configured for scannable source file: {path}")
+        raise ValueError(f"target path is not a scannable source file: {path}")
+
+
+@dataclass(frozen=True)
+class _CommentStyle:
+    """Comment delimiters used to write one complete marker line."""
+
+    prefix: str
+    suffix: str = ""
+
+
+_COMMENT_STYLE_BY_SUFFIX = {
+    **dict.fromkeys((".py", ".pyi"), _CommentStyle("#")),
+    **dict.fromkeys((".go", ".rs"), _CommentStyle("//")),
+    **dict.fromkeys((".c", ".h", ".cc", ".cpp", ".hh", ".hpp"), _CommentStyle("//")),
+    **dict.fromkeys((".java", ".kt", ".kts"), _CommentStyle("//")),
+    ".rb": _CommentStyle("#"),
+    ".php": _CommentStyle("//"),
+    **dict.fromkeys((".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"), _CommentStyle("//")),
+    **dict.fromkeys((".sh", ".bash", ".zsh"), _CommentStyle("#")),
+    **dict.fromkeys((".swift", ".cs", ".scala"), _CommentStyle("//")),
+    **dict.fromkeys((".clj", ".cljs"), _CommentStyle(";;")),
+    ".hs": _CommentStyle("--"),
+    **dict.fromkeys((".ex", ".exs"), _CommentStyle("#")),
+    ".erl": _CommentStyle("%"),
+    ".lua": _CommentStyle("--"),
+    **dict.fromkeys((".pl", ".pm"), _CommentStyle("#")),
+    **dict.fromkeys((".nim", ".cr"), _CommentStyle("#")),
+    **dict.fromkeys((".ml", ".mli"), _CommentStyle("(*", "*)")),
+    **dict.fromkeys((".fs", ".fsx", ".dart"), _CommentStyle("//")),
+}
+_COMMENT_STYLE_BY_FILENAME = {
+    "Makefile": _CommentStyle("#"),
+    "Dockerfile": _CommentStyle("#"),
+    "Rakefile": _CommentStyle("#"),
+    "Gemfile": _CommentStyle("#"),
+    "Jenkinsfile": _CommentStyle("//"),
+}

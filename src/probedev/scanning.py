@@ -14,7 +14,9 @@ from pathlib import Path
 # rewrite step can reuse the same pattern when substituting new ids.
 CANDIDATE_RE = re.compile(
     r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*"
-    r"(?P<description>.*?)(?=\s*(?:(?:#|//|/\*|\*)\s*)?TODO\(EVO(?:-[^)]+)?\):|$)"
+    r"(?P<description>.*?)"
+    r"(?=\s*(?:(?:#|//|/\*|\*)\s*|\*\)\s*\(\*\s*)?"
+    r"TODO\(EVO(?:-[^)]+)?\):|$)"
 )
 IGNORE_PRAGMA_RE = re.compile(r"\bprobedev:\s*(?P<pragma>ignore-(?:file|line|next-line|start|end))\b")
 IGNORE_PRAGMA_COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--")
@@ -160,8 +162,15 @@ def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
                 line=line_number,
                 text=line,
                 token=match.group("token"),
-                description=match.group("description").strip(),
+                description=_candidate_description(path, match.group("description")),
             )
+
+
+def _candidate_description(path: Path, description: str) -> str:
+    description = description.strip()
+    if path.suffix in {".ml", ".mli"} and description.endswith("*)"):
+        return description[:-2].rstrip()
+    return description
 
 
 def _ignore_pragmas(line: str) -> set[str]:
