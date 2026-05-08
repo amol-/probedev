@@ -25,6 +25,29 @@ class AddedEvolution:
     line: int
 
 
+class EvolutionIdAllocator:
+    """Allocate new marker ids for the default evolution sequence."""
+
+    def next_default_marker(self, plan: ProbePlan) -> str:
+        """Choose the next ``EVO-XXX`` id from a complete, unambiguous plan.
+
+        :param ProbePlan plan: Current active probe plan.
+        """
+        duplicates = [marker for marker in plan.duplicate_markers() if sequence_name(marker) == "EVO"]
+        if duplicates:
+            raise ValueError(
+                "cannot allocate next EVO id while duplicate default-sequence markers exist: "
+                + ", ".join(duplicates)
+            )
+
+        default_numbers = [
+            int(evolution.marker.rsplit("-", 1)[1])
+            for evolution in plan.evolutions
+            if sequence_name(evolution.marker) == "EVO"
+        ]
+        return f"EVO-{(max(default_numbers, default=0) + 10):03d}"
+
+
 class EvolutionRecorder:
     """Append new probe evolutions as code-local TODO markers.
 
@@ -32,6 +55,9 @@ class EvolutionRecorder:
     description at the CLI boundary, scan the current plan, allocate the next
     default-sequence id, then append one marker to the requested file.
     """
+
+    def __init__(self, id_allocator: EvolutionIdAllocator | None = None) -> None:
+        self._id_allocator = id_allocator or EvolutionIdAllocator()
 
     def record(self, root: Path, plan: ProbePlan, request: AddEvolutionRequest) -> AddedEvolution:
         """Add one ordered evolution marker without applying the evolution.
@@ -54,18 +80,9 @@ class EvolutionRecorder:
                 f"target path is not a scannable source file: {request.path}; "
                 "use a recognized source extension (e.g. .py, .go) or filename (e.g. Makefile)."
             )
-        marker = self._next_marker(plan)
+        marker = self._id_allocator.next_default_marker(plan)
         line = self._write_marker(path, marker, description)
         return AddedEvolution(marker, description, path, line)
-
-    def _next_marker(self, plan: ProbePlan) -> str:
-        # TODO(EVO-010): Extract id allocation into a component that rejects duplicate default-sequence markers before choosing the next id.
-        default_numbers = [
-            int(evolution.marker.rsplit("-", 1)[1])
-            for evolution in plan.evolutions
-            if sequence_name(evolution.marker) == "EVO"
-        ]
-        return f"EVO-{(max(default_numbers, default=0) + 10):03d}"
 
     def _target_path(self, root: Path, request: AddEvolutionRequest) -> Path:
         path = (root / request.path).resolve()

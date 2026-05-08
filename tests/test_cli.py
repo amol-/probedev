@@ -350,6 +350,25 @@ def test_probe_add_refuses_to_allocate_when_directory_scan_is_incomplete(
     assert target.read_text(encoding="utf-8") == f"# {marker}010): Existing visible step.\n"
 
 
+def test_probe_add_refuses_to_allocate_with_duplicate_default_sequence_marker(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    target = tmp_path / "tool.py"
+    original = f"# {marker}010): First duplicate.\n# {marker}010): Second duplicate.\n"
+    target.write_text(original, encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py", "Must not allocate after duplicates."])
+
+    assert exit_code == 1
+    assert capsys.readouterr().out == (
+        "Could not add evolution: cannot allocate next EVO id while duplicate default-sequence markers exist: "
+        "EVO-010\n"
+    )
+    assert target.read_text(encoding="utf-8") == original
+
+
 def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, capsys) -> None:
     marker = "TODO" + "(EVO-"
     exit_code = main(["--root", str(project_root), "add", "tool.py", "Add README-aware refinement."])
