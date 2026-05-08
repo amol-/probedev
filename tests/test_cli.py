@@ -12,6 +12,7 @@ import probedev.show
 from probedev.cli import Workspace, build_parser, main, run_show
 from probedev.identification import EvolutionIdentifier
 from probedev.plan import ProbePlanParser
+from probedev.scanning import scan_candidates
 
 
 class TrackingOutput(StringIO):
@@ -63,6 +64,62 @@ def test_probe_list_discovers_non_python_source_markers(tmp_path: Path, capsys) 
 
     assert exit_code == 0
     assert "  next EVO-010 line 1 Add the Go step." in capsys.readouterr().out
+
+
+def test_scan_candidates_discovers_two_markers_on_one_source_line(tmp_path: Path) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        f"# {marker}010): Add the first step.  # {marker}020): Add the second step.\n",
+        encoding="utf-8",
+    )
+
+    scan = scan_candidates(tmp_path)
+    candidates = [candidate for file in scan.files for candidate in file.candidates]
+
+    assert [(candidate.token, candidate.description, candidate.line) for candidate in candidates] == [
+        ("EVO-010", "Add the first step.", 1),
+        ("EVO-020", "Add the second step.", 1),
+    ]
+
+
+def test_probe_list_prints_two_markers_on_one_source_line(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        f"# {marker}010): Add the first step.  # {marker}020): Add the second step.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.py",
+        "  next EVO-010 line 1 Add the first step.",
+        "       EVO-020 line 1 Add the second step.",
+    ]
+
+
+def test_probe_list_marks_only_first_identical_same_line_duplicate_as_next(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(f"# {marker}010): Same. # {marker}010): Same.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.py",
+        "  next EVO-010 line 1 Same.",
+        "       EVO-010 line 1 Same.",
+        "warn DUPLICATE EVO-010",
+    ]
 
 
 def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
@@ -413,6 +470,33 @@ def test_probe_show_launch_exception_does_not_print_opened_success(
     assert "Could not show evolution: code" in out.getvalue()
     assert "Opened evolution" not in out.getvalue()
     assert out.flushed
+
+
+def test_probe_identify_rewrites_same_line_candidates_needing_ids(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        f"# {marker}-010): Keep this id.  # {marker}): Add first missing id.  "
+        f"# {marker}-XXX): Add second missing id.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "identify"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Identified evolutions",
+        "- marker: EVO-020",
+        "  description: Add first missing id.",
+        "  location: tool.py:1",
+        "- marker: EVO-030",
+        "  description: Add second missing id.",
+        "  location: tool.py:1",
+    ]
+    assert source.read_text(encoding="utf-8") == (
+        f"# {marker}-010): Keep this id.  # {marker}-020): Add first missing id.  "
+        f"# {marker}-030): Add second missing id.\n"
+    )
 
 
 # TODO(EVO-160): Pin the language-agnostic / shared-scanner contract in a BDD scenario on list.feature so the behavior covered by the test below is also specified in the product-visible spec, not only in pytest.

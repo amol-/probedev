@@ -7,7 +7,7 @@ from pathlib import Path
 from probedev.scanning import CANDIDATE_RE, FileCandidates, has_ignore_pragma, scan_candidates
 
 
-TODO_RE = re.compile(r"TODO\((EVO-\d{3})\):\s*(.+)")
+VALID_MARKER_RE = re.compile(r"EVO-\d{3}")
 
 
 @dataclass(frozen=True)
@@ -114,15 +114,14 @@ class ProbePlanParser:
         candidates = list(file.candidates)
         for index, candidate in enumerate(candidates):
             next_line = candidates[index + 1].line if index + 1 < len(candidates) else len(file.lines) + 1
-            match = TODO_RE.search(candidate.text)
-            if match is None:
+            if not VALID_MARKER_RE.fullmatch(candidate.token) or not candidate.description:
                 malformed.append(MalformedEvolution(candidate.text.strip(), file.path, candidate.line))
                 continue
             continuation = self._collect_continuation_lines(
                 file.lines, candidate.line, next_line, self._marker_line_prefix(candidate.text)
             )
             evolutions.append(
-                Evolution(match.group(1), match.group(2).strip(), file.path, candidate.line, continuation)
+                Evolution(candidate.token, candidate.description, file.path, candidate.line, continuation)
             )
 
     def _collect_continuation_lines(

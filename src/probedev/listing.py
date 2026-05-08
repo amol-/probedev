@@ -25,7 +25,7 @@ class EvolutionListPresenter:
         for path, evolutions in self._group_by_file(root, plan.evolutions).items():
             lines.append(str(path))
             for evolution in evolutions:
-                prefix = "next" if next_by_sequence[sequence_name(evolution.marker)] == evolution else "    "
+                prefix = "next" if next_by_sequence[sequence_name(evolution.marker)] is evolution else "    "
                 description_prefix = f"  {prefix} {evolution.marker} line {evolution.line} "
                 description_indent = " " * len(description_prefix)
                 for index, description_line in enumerate(evolution.description_lines):

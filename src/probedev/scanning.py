@@ -12,8 +12,10 @@ from pathlib import Path
 # description text so that both ``probedev list`` and ``probedev identify``
 # agree on the shape of every candidate. Public so that ``identify``'s
 # rewrite step can reuse the same pattern when substituting new ids.
-# TODO(EVO-150): Replace the greedy description capture so two TODO(EVO-...) markers on the same line are both discovered instead of collapsing into one.
-CANDIDATE_RE = re.compile(r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*(?P<description>.*)")
+CANDIDATE_RE = re.compile(
+    r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*"
+    r"(?P<description>.*?)(?=\s*(?:(?:#|//|/\*|\*)\s*)?TODO\(EVO(?:-[^)]+)?\):|$)"
+)
 IGNORE_PRAGMA_RE = re.compile(r"\bprobedev:\s*(?P<pragma>ignore-(?:file|line|next-line|start|end))\b")
 IGNORE_PRAGMA_COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--")
 
@@ -152,16 +154,14 @@ def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
         if ignore_current:
             continue
 
-        match = CANDIDATE_RE.search(line)
-        if match is None:
-            continue
-        yield MarkerCandidate(
-            path=path,
-            line=line_number,
-            text=line,
-            token=match.group("token"),
-            description=match.group("description").strip(),
-        )
+        for match in CANDIDATE_RE.finditer(line):
+            yield MarkerCandidate(
+                path=path,
+                line=line_number,
+                text=line,
+                token=match.group("token"),
+                description=match.group("description").strip(),
+            )
 
 
 def _ignore_pragmas(line: str) -> set[str]:

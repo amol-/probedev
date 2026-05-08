@@ -62,17 +62,25 @@ class EvolutionIdentifier:
         identified = []
         replacements = {}
         used_ids = set(kept_ids)
-
+        conflicts = self._conflicting_candidate_indexes(candidates)
+        line_counts = Counter()
+        candidate_slots = []
         for candidate in candidates:
-            if candidate.has_valid_id and candidate.token in kept_ids and candidate not in self._conflicting_candidates(candidates):
+            key = (candidate.path, candidate.line)
+            candidate_slots.append((candidate, line_counts[key]))
+            line_counts[key] += 1
+            replacements.setdefault(key, []).append(None)
+
+        for candidate_index, (candidate, match_index) in enumerate(candidate_slots):
+            if candidate.has_valid_id and candidate.token in kept_ids and candidate_index not in conflicts:
                 continue
             marker = self._next_marker(next_number, used_ids)
             next_number = int(marker.rsplit("-", 1)[1]) + 10
             used_ids.add(marker)
-            replacements[(candidate.path, candidate.line)] = marker
+            replacements[(candidate.path, candidate.line)][match_index] = marker
             identified.append(IdentifiedEvolution(marker, candidate.description, candidate.path, candidate.line))
 
-        for path in {path for path, _line in replacements}:
+        for path in {path for (path, _line), markers in replacements.items() if any(markers)}:
             self._rewrite_file(path, replacements)
 
         # TODO(EVO-090): Preserve file newline style and permissions when identify rewrites source files.
@@ -101,14 +109,14 @@ class EvolutionIdentifier:
                 kept.add(candidate.token)
         return kept
 
-    def _conflicting_candidates(self, candidates: list[EvolutionCandidate]) -> set[EvolutionCandidate]:
+    def _conflicting_candidate_indexes(self, candidates: list[EvolutionCandidate]) -> set[int]:
         seen = set()
         conflicts = set()
-        for candidate in candidates:
+        for index, candidate in enumerate(candidates):
             if not candidate.has_valid_id:
                 continue
             if candidate.token in seen:
-                conflicts.add(candidate)
+                conflicts.add(index)
             else:
                 seen.add(candidate.token)
         return conflicts
@@ -124,19 +132,23 @@ class EvolutionIdentifier:
             marker = f"EVO-{next_number:03d}"
         return marker
 
-    def _rewrite_file(self, path: Path, replacements: dict[tuple[Path, int], str]) -> None:
+    def _rewrite_file(self, path: Path, replacements: dict[tuple[Path, int], list[str | None]]) -> None:
         lines = path.read_text(encoding="utf-8").splitlines()
         updated = []
         for line_number, line in enumerate(lines, start=1):
-            marker = replacements.get((path, line_number))
-            if marker is None:
+            markers = replacements.get((path, line_number))
+            if markers is None:
                 updated.append(line)
             else:
-                updated.append(
-                    CANDIDATE_RE.sub(
-                        lambda match: f"TODO({marker}): {match.group('description').strip()}",
-                        line,
-                        count=1,
-                    )
-                )
+                match_index = 0
+
+                def replace(match: re.Match[str]) -> str:
+                    nonlocal match_index
+                    marker = markers[match_index] if match_index < len(markers) else None
+                    match_index += 1
+                    if marker is None:
+                        return match.group(0)
+                    return f"TODO({marker}): {match.group('description').strip()}"
+
+                updated.append(CANDIDATE_RE.sub(replace, line))
         path.write_text("\n".join(updated) + "\n", encoding="utf-8")
