@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+import probedev.evolutions
 import probedev.show
 from probedev.cli import Workspace, build_parser, main, run_show
 from probedev.identification import EvolutionIdentifier
@@ -584,6 +585,62 @@ def test_probe_add_records_new_evolution_at_end_of_file(project_root: Path, caps
         "",
         f"# {marker}020): Add README-aware refinement.",
     ]
+
+
+def test_probe_add_preserves_existing_crlf_newline_style(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    target = tmp_path / "tool.py"
+    target.write_bytes(f"# {marker}010): Existing step.\r\n".encode("utf-8"))
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py", "Add a CRLF-preserved step."])
+
+    assert exit_code == 0
+    assert "- location: tool.py:3" in capsys.readouterr().out
+    assert target.read_bytes() == (
+        f"# {marker}010): Existing step.\r\n"
+        "\r\n"
+        f"# {marker}020): Add a CRLF-preserved step.\r\n"
+    ).encode("utf-8")
+
+
+def test_probe_add_rewrites_existing_file_through_single_atomic_replace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    target = tmp_path / "tool.py"
+    target.write_bytes(f"# {marker}010): Existing step.\n".encode("utf-8"))
+    original_replace = os.replace
+    replace_calls: list[tuple[Path, Path]] = []
+
+    def tracking_replace(source: str | os.PathLike[str], destination: str | os.PathLike[str]) -> None:
+        replace_calls.append((Path(source), Path(destination)))
+        original_replace(source, destination)
+
+    original_write_text = Path.write_text
+
+    def guarded_write_text(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path == target:
+            raise AssertionError("existing add target must be replaced atomically")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(probedev.evolutions.os, "replace", tracking_replace)
+    monkeypatch.setattr(Path, "write_text", guarded_write_text)
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py", "Add an atomically replaced step."])
+
+    assert exit_code == 0
+    assert "- location: tool.py:3" in capsys.readouterr().out
+    assert len(replace_calls) == 1
+    temp_path, replaced_path = replace_calls[0]
+    assert replaced_path == target
+    assert temp_path.parent == target.parent
+    assert target.read_bytes() == (
+        f"# {marker}010): Existing step.\n"
+        "\n"
+        f"# {marker}020): Add an atomically replaced step.\n"
+    ).encode("utf-8")
 
 
 def test_probe_add_reports_actual_line_when_appending_to_existing_path(project_root: Path, capsys) -> None:

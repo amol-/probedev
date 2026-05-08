@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -101,14 +103,43 @@ class EvolutionRecorder:
             path.write_text(f"{marker_line}\n", encoding="utf-8")
             return 1
 
-        lines = path.read_text(encoding="utf-8").splitlines()
+        content = path.read_bytes().decode("utf-8")
+        newline = "\n"
+        for index, character in enumerate(content):
+            if character == "\n":
+                newline = "\r\n" if index > 0 and content[index - 1] == "\r" else "\n"
+                break
+            if character == "\r":
+                newline = "\r\n" if index + 1 < len(content) and content[index + 1] == "\n" else "\r"
+                break
+
+        lines = content.splitlines()
         insertion_index = self._insertion_index(lines)
         if insertion_index > len(lines):
             lines.append("")
             insertion_index = len(lines)
         lines.insert(insertion_index, marker_line)
-        # TODO(EVO-030): Preserve original file newline style and write atomically once the append boundary graduates from probe to production.
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                delete=False,
+                dir=path.parent,
+                encoding="utf-8",
+                newline="",
+                prefix=f".{path.name}.",
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(newline.join(lines) + newline)
+            os.chmod(temp_path, path.stat().st_mode)
+            os.replace(temp_path, path)
+        finally:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink()
+                except FileNotFoundError:
+                    pass
         return insertion_index + 1
 
     def _insertion_index(self, lines: list[str]) -> int:
