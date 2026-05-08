@@ -503,3 +503,42 @@ def test_probe_plan_includes_recognized_extensionless_source_files(tmp_path: Pat
 
     scanned = {evolution.path.name for evolution in plan.evolutions}
     assert scanned == {"Makefile", "Dockerfile"}
+
+
+def test_probe_plan_ignores_marker_candidates_with_pragmas(tmp_path: Path) -> None:
+    """Ignore pragmas let tests and fixtures quote marker-shaped text."""
+    marker = "TODO" + "(EVO-"
+    ignore_file = "probedev:" + " ignore-file"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                f"# {marker}010): Keep this real marker.",
+                "# probedev: ignore-next-line",
+                f"# {marker}020): Ignore the next-line marker.",
+                f"# {marker}030): Ignore the same-line marker.  # probedev: ignore-line",
+                "# probedev: ignore-start",
+                f"# {marker}040): Ignore the block marker.",
+                f"# {marker}40): Ignore the malformed block marker.",
+                "# probedev: ignore-end",
+                f"# {marker}050): Keep the marker after the block.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "fixtures.py").write_text(
+        f"# {ignore_file}\n# {marker}060): Ignore the whole file.\n",
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+    result = EvolutionIdentifier().identify(tmp_path)
+
+    assert [(evolution.marker, evolution.title) for evolution in plan.evolutions] == [
+        ("EVO-010", "Keep this real marker."),
+        ("EVO-050", "Keep the marker after the block."),
+    ]
+    assert plan.malformed == []
+    assert result.identified == []
+    assert f"# {marker}40): Ignore the malformed block marker." in source.read_text(encoding="utf-8")

@@ -14,6 +14,7 @@ Feature: List ordered evolutions
     - List reports duplicate marker ids.
     - List reports malformed marker candidates.
     - List warns about scannable files that could not be read.
+    - List honors `probedev: ignore-*` pragmas in source files.
     - Markdown and ignored workspace directories are not part of the active plan scan.
 
   @id:F-COMMANDS-LIST-S001
@@ -60,4 +61,11 @@ Feature: List ordered evolutions
     Then the system prints the marker id and marker line number once
     And the system prints all continuation lines as part of the same evolution
     And the continuation lines are aligned with the evolution description column
+    And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S007
+  Scenario: Ignored marker-shaped text is not listed
+    Given a workspace with ignored marker-shaped fixture text
+    When the developer runs `probedev list`
+    Then the system prints only the non-ignored evolution marker
     And the command succeeds.

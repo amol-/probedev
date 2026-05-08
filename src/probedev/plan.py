@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from probedev.scanning import FileCandidates, scan_candidates
+from probedev.scanning import CANDIDATE_RE, FileCandidates, has_ignore_pragma, scan_candidates
 
 
 TODO_RE = re.compile(r"TODO\((EVO-\d{3})\):\s*(.+)")
@@ -143,6 +143,8 @@ class ProbePlanParser:
         """
         continuation: list[str] = []
         for index in range(marker_line, next_candidate_line - 1):
+            if has_ignore_pragma(lines[index]) or CANDIDATE_RE.search(lines[index]):
+                break
             text = self._continuation_text(lines[index], marker_prefix)
             if text is None:
                 break

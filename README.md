@@ -123,6 +123,20 @@ Rules:
 - place each marker where the work belongs
 - update evolutions as the software changes
 
+When source files need to quote marker-shaped text as examples or test fixtures, use ignore pragmas so the quoted text does not become part of the active plan:
+
+```text
+# probedev: ignore-next-line
+"# TODO(EVO-010): fixture text, not a real evolution"
+
+# probedev: ignore-start
+"# TODO(EVO-020): another fixture"
+"# TODO(EVO-030): more fixture text"
+# probedev: ignore-end
+```
+
+Supported pragmas are `probedev: ignore-line`, `probedev: ignore-next-line`, `probedev: ignore-start`, `probedev: ignore-end`, and `probedev: ignore-file`; place them on source comment lines.
+
 Use one ordered `EVO-XXX` sequence for the current agreed scope. If the project has multiple independent architectural fronts, keep them in the same sequence and make the scope clear in the marker title and nearby code.
 
 ## Core Requirements

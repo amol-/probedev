@@ -14,6 +14,8 @@ from pathlib import Path
 # rewrite step can reuse the same pattern when substituting new ids.
 # TODO(EVO-150): Replace the greedy description capture so two TODO(EVO-...) markers on the same line are both discovered instead of collapsing into one.
 CANDIDATE_RE = re.compile(r"TODO\((?P<token>EVO(?:-[^)]+)?)\):\s*(?P<description>.*)")
+IGNORE_PRAGMA_RE = re.compile(r"\bprobedev:\s*(?P<pragma>ignore-(?:file|line|next-line|start|end))\b")
+IGNORE_PRAGMA_COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--")
 
 SKIPPED_DIRS = {".git", ".pytest_cache", "__pycache__", ".venv", "venv", "dist", "build"}
 # Allowlist of programming-language source extensions. Language-agnostic
@@ -123,8 +125,33 @@ def scan_candidates(root: Path) -> CandidateScan:
     return CandidateScan(tuple(files), tuple(sorted(unreadable_paths)))
 
 
+def has_ignore_pragma(line: str) -> bool:
+    """Return True when a comment line contains any ``probedev: ignore-*`` pragma."""
+    return bool(_ignore_pragmas(line))
+
+
 def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
+    if any("ignore-file" in _ignore_pragmas(line) for line in lines):
+        return
+
+    ignore_block = False
+    ignore_next_line = False
     for line_number, line in enumerate(lines, start=1):
+        pragmas = _ignore_pragmas(line)
+        ignore_current = ignore_next_line or ignore_block or bool(
+            pragmas & {"ignore-line", "ignore-next-line", "ignore-start", "ignore-end"}
+        )
+        ignore_next_line = False
+
+        if "ignore-end" in pragmas:
+            ignore_block = False
+        if "ignore-start" in pragmas:
+            ignore_block = True
+        if "ignore-next-line" in pragmas:
+            ignore_next_line = True
+        if ignore_current:
+            continue
+
         match = CANDIDATE_RE.search(line)
         if match is None:
             continue
@@ -135,6 +162,13 @@ def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
             token=match.group("token"),
             description=match.group("description").strip(),
         )
+
+
+def _ignore_pragmas(line: str) -> set[str]:
+    stripped = line.lstrip()
+    if not stripped.startswith(IGNORE_PRAGMA_COMMENT_PREFIXES):
+        return set()
+    return {match.group("pragma") for match in IGNORE_PRAGMA_RE.finditer(line)}
 
 
 def _iter_scannable_files(root: Path, unreadable_paths: list[Path]):

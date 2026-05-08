@@ -37,7 +37,6 @@ def marker_prefix() -> str:
     return "TODO" + "(EVO-"
 
 
-# TODO(EVO-170): Route every remaining marker-shaped fixture literal in this file through `marker_prefix` (or the split-string convention) so `probedev list` stops reporting BDD fixture strings as DUPLICATE/MALFORMED evolutions on self-scan.
 
 
 def write_readme(root: Path) -> None:
@@ -132,6 +131,27 @@ def workspace_with_multiline_evolution_marker(command_context: CommandContext, m
     )
 
 
+@given("a workspace with ignored marker-shaped fixture text")
+def workspace_with_ignored_marker_shaped_fixture_text(
+    command_context: CommandContext,
+    marker_prefix: str,
+) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                f"# {marker_prefix}010): Keep the real marker.",
+                "# probedev: ignore-next-line",
+                f"# {marker_prefix}020): Ignore the quoted fixture marker.",
+                "# probedev: ignore-start",
+                f"# {marker_prefix}030): Ignore the block fixture marker.",
+                "# probedev: ignore-end",
+            ]
+        ),
+    )
+
+
+# probedev: ignore-start
 @given("a workspace with pending evolutions that have no ids")
 def workspace_with_missing_evolution_ids(command_context: CommandContext) -> None:
     write_source(
@@ -192,6 +212,9 @@ def workspace_with_valid_unique_evolution_ids(command_context: CommandContext) -
 @given("the workspace has ordered evolution markers")
 def workspace_has_ordered_evolution_markers(command_context: CommandContext, marker_prefix: str) -> None:
     write_source(command_context.root, f"# {marker_prefix}010): Add the first step.\n")
+
+
+# probedev: ignore-end
 
 
 @given("the developer has a configured code editor")
@@ -392,6 +415,7 @@ def assert_recorded_marker_is_listed(command_context: CommandContext, capsys: py
     assert "Add README-aware refinement." in output
 
 
+# probedev: ignore-start
 @then("the marker is appended at the end of the requested file")
 def assert_marker_appended_at_end(command_context: CommandContext) -> None:
     assert (command_context.root / "tool.py").read_text(encoding="utf-8").splitlines()[-1] == (
@@ -530,11 +554,21 @@ def assert_add_reports_incomplete_plan(command_context: CommandContext) -> None:
     assert "Could not add evolution: plan scan skipped unreadable files" in command_context.output
 
 
+@then("the system prints only the non-ignored evolution marker")
+def assert_only_non_ignored_marker_printed(command_context: CommandContext) -> None:
+    assert "EVO-010 line 1 Keep the real marker." in command_context.output
+    assert "EVO-020" not in command_context.output
+    assert "EVO-030" not in command_context.output
+
+
 @then("no new marker is appended to the requested file")
 def assert_no_marker_appended(command_context: CommandContext) -> None:
     assert (command_context.root / "tool.py").read_text(encoding="utf-8") == (
         "# TODO(EVO-010): Existing visible step.\n"
     )
+
+
+# probedev: ignore-end
 
 
 @then("the system assigns the first evolution id")
