@@ -96,7 +96,8 @@ class EvolutionRecorder:
         if comment_style.suffix:
             marker_line = f"{marker_line} {comment_style.suffix}"
         if not path.exists():
-            # TODO(EVO-020): Confirm whether add should create missing files or require the target file to already exist.
+            # Missing scannable source files are valid add targets and seed a
+            # visible plan at the requested path.
             path.write_text(f"{marker_line}\n", encoding="utf-8")
             return 1
 

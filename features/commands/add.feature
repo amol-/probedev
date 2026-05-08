@@ -8,6 +8,7 @@ Feature: Add an evolution
     - Add requires a source file and an evolution description.
     - Add records the requested description without applying the evolution.
     - Add appends the marker at the end of the requested file.
+    - Add creates a missing requested file when it is a scannable source path.
     - Add keeps the resulting marker visible to list.
     - Add refuses to allocate an id when the plan scan skipped unreadable source files.
 
@@ -30,7 +31,7 @@ Feature: Add an evolution
     And the command succeeds.
 
   @id:F-COMMANDS-ADD-S003
-  Scenario: Add records an evolution at a requested path
+  Scenario: Add creates a missing source file at a requested path
     Given a workspace with README intent
     And the workspace has ordered evolution markers
     When the developer runs `probedev add` with a target file and new evolution description

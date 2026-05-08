@@ -611,13 +611,16 @@ def test_probe_add_reports_actual_line_when_appending_to_existing_path(project_r
     ]
 
 
-def test_probe_add_records_first_evolution_when_plan_is_empty(tmp_path: Path, capsys) -> None:
+def test_probe_add_creates_missing_scannable_source_file_when_plan_is_empty(tmp_path: Path, capsys) -> None:
     marker = "TODO" + "(EVO-"
+    target = tmp_path / "src" / "tool.py"
+    assert not target.exists()
+
     exit_code = main(["--root", str(tmp_path), "add", "src/tool.py", "Add the first evolution."])
 
     assert exit_code == 0
     assert "- marker: EVO-010" in capsys.readouterr().out
-    assert (tmp_path / "src" / "tool.py").read_text(encoding="utf-8") == f"# {marker}010): Add the first evolution.\n"
+    assert target.read_text(encoding="utf-8") == f"# {marker}010): Add the first evolution.\n"
 
 
 def test_probe_add_refuses_non_source_target_path(tmp_path: Path, capsys) -> None:
