@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -83,7 +85,6 @@ class EvolutionIdentifier:
         for path in {path for (path, _line), markers in replacements.items() if any(markers)}:
             self._rewrite_file(path, replacements)
 
-        # TODO(EVO-090): Preserve file newline style and permissions when identify rewrites source files.
         # TODO(EVO-100): Report unchanged valid markers and rewritten conflicts separately for clearer command output.
         return IdentifyResult(identified)
 
@@ -133,13 +134,19 @@ class EvolutionIdentifier:
         return marker
 
     def _rewrite_file(self, path: Path, replacements: dict[tuple[Path, int], list[str | None]]) -> None:
-        lines = path.read_text(encoding="utf-8").splitlines()
         updated = []
-        for line_number, line in enumerate(lines, start=1):
+        for line_number, line in enumerate(
+            path.read_bytes().decode("utf-8").splitlines(keepends=True),
+            start=1,
+        ):
+            newline = ""
+            if line.endswith("\r\n"):
+                line, newline = line[:-2], "\r\n"
+            elif line.endswith(("\n", "\r")):
+                line, newline = line[:-1], line[-1]
+
             markers = replacements.get((path, line_number))
-            if markers is None:
-                updated.append(line)
-            else:
+            if markers is not None:
                 match_index = 0
 
                 def replace(match: re.Match[str]) -> str:
@@ -150,5 +157,25 @@ class EvolutionIdentifier:
                         return match.group(0)
                     return f"TODO({marker}): {match.group('description').strip()}"
 
-                updated.append(CANDIDATE_RE.sub(replace, line))
-        path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+                line = CANDIDATE_RE.sub(replace, line)
+            updated.append(f"{line}{newline}")
+
+        rewrite_path = path.resolve() if path.is_symlink() else path
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "wb",
+                delete=False,
+                dir=rewrite_path.parent,
+                prefix=f".{rewrite_path.name}.",
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write("".join(updated).encode("utf-8"))
+            os.chmod(temp_path, path.stat().st_mode)
+            os.replace(temp_path, rewrite_path)
+        finally:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink()
+                except FileNotFoundError:
+                    pass

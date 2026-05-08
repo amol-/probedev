@@ -778,6 +778,38 @@ def test_probe_identify_rewrites_same_line_candidates_needing_ids(tmp_path: Path
     )
 
 
+def test_probe_identify_preserves_rewritten_file_newlines_and_permissions(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "tool.py"
+    source.write_bytes(b"# TODO(EVO): Add first missing id.\r\n# TODO(EVO): Add second missing id.")
+    source.chmod(0o754)
+
+    exit_code = main(["--root", str(tmp_path), "identify"])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+    assert source.read_bytes() == (
+        b"# TODO(EVO-010): Add first missing id.\r\n# TODO(EVO-020): Add second missing id."
+    )
+    assert source.stat().st_mode & 0o777 == 0o754
+
+
+def test_probe_identify_rewrites_symlink_target_without_replacing_symlink(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "target"
+    source = tmp_path / "tool.py"
+    target.write_bytes(b"# TODO(EVO): Rewrite through the symlink.\r\n")
+    try:
+        source.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    exit_code = main(["--root", str(tmp_path), "identify"])
+
+    assert exit_code == 0
+    assert "  location: tool.py:1" in capsys.readouterr().out
+    assert source.is_symlink()
+    assert target.read_bytes() == b"# TODO(EVO-010): Rewrite through the symlink.\r\n"
+
+
 def test_list_and_identify_agree_on_candidates_across_languages_and_shapes(tmp_path: Path) -> None:
     """Pin the EVO-080 invariant observably.
 
