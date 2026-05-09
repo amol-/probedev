@@ -245,6 +245,16 @@ def developer_has_code_editor(command_context: CommandContext, monkeypatch: pyte
     monkeypatch.delenv("EDITOR", raising=False)
 
 
+@given("the developer has `CODE_EDITOR` configured as `zed --reuse-window {path}:{line}`")
+def developer_has_code_editor_line_template(
+    command_context: CommandContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_editor_spy(command_context, monkeypatch)
+    monkeypatch.setenv("CODE_EDITOR", "zed --reuse-window {path}:{line}")
+    monkeypatch.delenv("EDITOR", raising=False)
+
+
 @given("the configured editor launch fails")
 def configured_editor_launch_fails(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
     command_context.editor_calls = []
@@ -388,6 +398,12 @@ def assert_editor_opened_from_editor(command_context: CommandContext) -> None:
 def assert_default_editor_opened(command_context: CommandContext) -> None:
     argv = assert_editor_opened(command_context)
     assert argv[0] == "/usr/bin/vim"
+
+
+@then("the system opens `CODE_EDITOR` using the configured line template for `EVO-020`")
+def assert_code_editor_template_opened(command_context: CommandContext) -> None:
+    argv = assert_editor_opened(command_context)
+    assert argv == ["zed", "--reuse-window", f"{command_context.root / 'tool.py'}:2"]
 
 
 @then("the editor is positioned on the `EVO-020` marker line")

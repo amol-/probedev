@@ -1006,6 +1006,29 @@ def test_probe_show_nonzero_editor_exit_fails_with_attempted_command(
     assert out.flushed
 
 
+def test_probe_show_uses_configured_editor_line_template(
+    project_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    editor_calls: list[list[str]] = []
+    out = TrackingOutput()
+
+    def fake_run(argv: list[str], **_kwargs: Any) -> probedev.show.subprocess.CompletedProcess[list[str]]:
+        editor_calls.append(argv)
+        return probedev.show.subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setenv("CODE_EDITOR", "zed --reuse-window {path}:{line}")
+    monkeypatch.delenv("EDITOR", raising=False)
+    monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
+
+    exit_code = run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
+
+    expected_argv = ["zed", "--reuse-window", f"{project_root / 'tool.py'}:1"]
+    assert exit_code == 0
+    assert editor_calls == [expected_argv]
+    assert f"- editor: zed --reuse-window {project_root / 'tool.py'}:1" in out.getvalue()
+
+
 @pytest.mark.parametrize(
     ("platform", "available_editor", "resolved_editor", "expected_lookup", "expected_argv"),
     [

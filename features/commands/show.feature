@@ -88,3 +88,12 @@ Feature: Show an evolution
     And the system reports the editor launch error
     And the system does not print an after-launch success message
     And the command fails.
+
+  @id:F-COMMANDS-SHOW-S009
+  Scenario: Configured editor line template controls file and line arguments
+    Given a workspace with ordered evolution markers
+    And the developer has `CODE_EDITOR` configured as `zed --reuse-window {path}:{line}`
+    When the developer runs `probedev show EVO-020`
+    Then the system opens `CODE_EDITOR` using the configured line template for `EVO-020`
+    And the system reports the selected editor command
+    And the command succeeds.

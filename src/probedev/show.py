@@ -139,6 +139,10 @@ class EditorResolver:
         return None
 
     def _argv_for(self, editor: list[str], path: Path, line: int) -> list[str]:
+        templated = [arg.replace("{line}", str(line)).replace("{path}", str(path)) for arg in editor]
+        if templated != editor:
+            return templated
+
         executable = Path(editor[0]).name.lower().rsplit("\\", 1)[-1]
         for suffix in (".cmd", ".exe"):
             if executable.endswith(suffix):
@@ -147,5 +151,4 @@ class EditorResolver:
             return [*editor, "--goto", f"{path}:{line}"]
         if executable in {"vim", "vi", "nvim"}:
             return [*editor, f"+{line}", str(path)]
-        # TODO(EVO-130): Support line-number argument templates for configured editors outside the initial code/vim family.
         return [*editor, str(path)]
