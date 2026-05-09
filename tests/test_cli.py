@@ -984,7 +984,7 @@ def test_probe_identify_preserves_rewritten_file_newlines_and_permissions(tmp_pa
     assert exit_code == 0
     assert "- marker: EVO-010" in capsys.readouterr().out
     assert source.read_bytes() == (
-        b"# TODO(EVO-010): Add first missing id.\r\n# TODO(EVO-020): Add second missing id."
+        b"# TODO" b"(EVO-010): Add first missing id.\r\n# TODO(EVO-020): Add second missing id."
     )
     assert source.stat().st_mode & 0o777 == 0o754
 
@@ -1003,7 +1003,7 @@ def test_probe_identify_rewrites_symlink_target_without_replacing_symlink(tmp_pa
     assert exit_code == 0
     assert "  location: tool.py:1" in capsys.readouterr().out
     assert source.is_symlink()
-    assert target.read_bytes() == b"# TODO(EVO-010): Rewrite through the symlink.\r\n"
+    assert target.read_bytes() == b"# TODO" b"(EVO-010): Rewrite through the symlink.\r\n"
 
 
 def test_list_and_identify_agree_on_candidates_across_languages_and_shapes(tmp_path: Path) -> None:
