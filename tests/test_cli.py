@@ -907,10 +907,11 @@ def test_probe_show_prints_editor_command_before_launch(project_root: Path, monk
     editor_calls: list[list[str]] = []
     out = TrackingOutput()
 
-    def fake_run(argv: list[str], **_kwargs: Any) -> None:
+    def fake_run(argv: list[str], **_kwargs: Any) -> probedev.show.subprocess.CompletedProcess[list[str]]:
         editor_calls.append(argv)
         assert f"- editor: code --wait --goto {project_root / 'tool.py'}:1" in out.getvalue()
         assert out.flushed
+        return probedev.show.subprocess.CompletedProcess(argv, 0)
 
     monkeypatch.setenv("CODE_EDITOR", "code --wait")
     monkeypatch.delenv("EDITOR", raising=False)
@@ -940,10 +941,42 @@ def test_probe_show_launch_exception_does_not_print_opened_success(
 
     exit_code = run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
 
+    output = out.getvalue()
     assert exit_code == 1
-    assert "Opening evolution" in out.getvalue()
-    assert "Could not show evolution: code" in out.getvalue()
-    assert "Opened evolution" not in out.getvalue()
+    assert "Opening evolution" in output
+    expected_error = (
+        "Editor launch failed; attempted command: code --goto "
+        f"{project_root / 'tool.py'}:1: code"
+    )
+    assert expected_error in output
+    assert "Opened evolution" not in output
+    assert out.flushed
+
+
+def test_probe_show_nonzero_editor_exit_fails_with_attempted_command(
+    project_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = TrackingOutput()
+
+    def fake_run(argv: list[str], **_kwargs: Any) -> probedev.show.subprocess.CompletedProcess[list[str]]:
+        return probedev.show.subprocess.CompletedProcess(argv, 23)
+
+    monkeypatch.setenv("CODE_EDITOR", "code")
+    monkeypatch.delenv("EDITOR", raising=False)
+    monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
+
+    exit_code = run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
+
+    output = out.getvalue()
+    assert exit_code == 1
+    assert "Opening evolution" in output
+    expected_error = (
+        "Editor exited with status 23; attempted command: code --goto "
+        f"{project_root / 'tool.py'}:1"
+    )
+    assert expected_error in output
+    assert "Opened evolution" not in output
     assert out.flushed
 
 

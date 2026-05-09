@@ -350,9 +350,10 @@ def run_show_invalid_evolution(command_context: CommandContext, capsys: pytest.C
 def install_editor_spy(command_context: CommandContext, monkeypatch: pytest.MonkeyPatch) -> None:
     command_context.editor_calls = []
 
-    def fake_run(argv: list[str], **_kwargs: Any) -> None:
+    def fake_run(argv: list[str], **_kwargs: Any) -> probedev.show.subprocess.CompletedProcess[list[str]]:
         assert command_context.editor_calls is not None
         command_context.editor_calls.append(argv)
+        return probedev.show.subprocess.CompletedProcess(argv, 0)
 
     monkeypatch.setattr(probedev.show.subprocess, "run", fake_run)
 
@@ -406,7 +407,8 @@ def assert_selected_editor_command_reported(command_context: CommandContext) -> 
 
 @then("the system reports the editor launch error")
 def assert_editor_launch_error_reported(command_context: CommandContext) -> None:
-    assert "Could not show evolution: code" in command_context.output
+    assert "Editor launch failed" in command_context.output
+    assert f"attempted command: code --goto {command_context.root / 'tool.py'}:2" in command_context.output
 
 
 @then("the system does not print an after-launch success message")

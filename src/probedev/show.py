@@ -74,8 +74,15 @@ class EvolutionShower:
 
         :param ShowResult result: Resolved evolution and editor command to open.
         """
-        subprocess.run(result.command.argv, check=False)
-        # TODO(EVO-110): Surface editor launch failures as a failed show command with the attempted command line.
+        command_line = shlex.join(result.command.argv)
+        try:
+            completed = subprocess.run(result.command.argv, check=False)
+        except OSError as exc:
+            raise RuntimeError(f"Editor launch failed; attempted command: {command_line}: {exc}") from exc
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"Editor exited with status {completed.returncode}; attempted command: {command_line}"
+            )
 
 
 class EditorResolver:
