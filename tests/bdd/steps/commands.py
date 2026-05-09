@@ -546,7 +546,9 @@ def assert_marker_id_line_and_description(command_context: CommandContext) -> No
 
 @then("the system prints a malformed marker warning")
 def assert_malformed_warning(command_context: CommandContext) -> None:
-    assert "warn MALFORMED tool.py:1" in command_context.output
+    output_lines = command_context.output.splitlines()
+    file_index = output_lines.index("tool.py")
+    assert output_lines[file_index + 1] == "  warn MALFORMED line 1 # TODO(EVO-10): Missing zero padding."
 
 
 @then("the system prints a duplicate marker warning")
