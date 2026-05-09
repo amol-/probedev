@@ -236,6 +236,32 @@ def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
     ]
 
 
+def test_probe_list_grouped_output_excludes_ignored_directories_and_markdown(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "src" / "tool.py"
+    source.parent.mkdir()
+    source.write_text(f"# {marker}020): Keep the real source marker.\n", encoding="utf-8")
+    hidden_venv = tmp_path / ".venv"
+    hidden_venv.mkdir()
+    (hidden_venv / "hidden.py").write_text(f"# {marker}010): Hidden virtualenv marker.\n", encoding="utf-8")
+    hidden_cache = tmp_path / "__pycache__"
+    hidden_cache.mkdir()
+    (hidden_cache / "cached.py").write_text(f"# {marker}030): Hidden cache marker.\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text(f"# {marker}040): Markdown marker text.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "src/tool.py",
+        "  next EVO-020 line 1 Keep the real source marker.",
+    ]
+
+
 def test_probe_list_prints_multiline_evolution_description_with_aligned_continuations(
     tmp_path: Path,
     capsys,

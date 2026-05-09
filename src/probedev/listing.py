@@ -53,7 +53,6 @@ class EvolutionListPresenter:
 
         for path in plan.unreadable_paths:
             lines.append(f"warn UNREADABLE {path.relative_to(root)} skipped during plan scan")
-        # TODO(EVO-070): Add explicit coverage for ignored directories and Markdown exclusions in grouped list output.
         return lines
 
     def _group_by_file(self, root: Path, evolutions: list[Evolution]) -> dict[Path, list[Evolution]]:
