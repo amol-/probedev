@@ -22,9 +22,22 @@ class EvolutionListPresenter:
         """
         lines = ["Pending evolutions"]
         next_by_sequence = plan.next_by_sequence()
-        for path, evolutions in self._group_by_file(root, plan.evolutions).items():
+        evolutions_by_file = self._group_by_file(root, plan.evolutions)
+        duplicate_markers = set(plan.duplicate_markers())
+        duplicate_markers_by_file = defaultdict(set)
+        for evolution in plan.evolutions:
+            if evolution.marker in duplicate_markers:
+                duplicate_markers_by_file[evolution.path.relative_to(root)].add(evolution.marker)
+        malformed_by_file = defaultdict(list)
+        for item in plan.malformed:
+            malformed_by_file[item.path.relative_to(root)].append(item)
+        paths = sorted(
+            evolutions_by_file.keys() | duplicate_markers_by_file.keys() | malformed_by_file.keys(),
+            key=str,
+        )
+        for path in paths:
             lines.append(str(path))
-            for evolution in evolutions:
+            for evolution in evolutions_by_file.get(path, []):
                 prefix = "next" if next_by_sequence[sequence_name(evolution.marker)] is evolution else "    "
                 description_prefix = f"  {prefix} {evolution.marker} line {evolution.line} "
                 description_indent = " " * len(description_prefix)
@@ -33,13 +46,11 @@ class EvolutionListPresenter:
                         lines.append(f"{description_prefix}{description_line}")
                     else:
                         lines.append(f"{description_indent}{description_line}")
+            for marker in sorted(duplicate_markers_by_file.get(path, [])):
+                lines.append(f"  warn DUPLICATE {marker}")
+            for item in malformed_by_file.get(path, []):
+                lines.append(f"  warn MALFORMED line {item.line} {item.text.strip()}")
 
-        # TODO(EVO-060): Group duplicate and malformed marker warnings by file once the main grouped list shape is accepted.
-        for marker in plan.duplicate_markers():
-            lines.append(f"warn DUPLICATE {marker}")
-        for item in plan.malformed:
-            location = f"{item.path.relative_to(root)}:{item.line}"
-            lines.append(f"warn MALFORMED {location} {item.text.strip()}")
         for path in plan.unreadable_paths:
             lines.append(f"warn UNREADABLE {path.relative_to(root)} skipped during plan scan")
         # TODO(EVO-070): Add explicit coverage for ignored directories and Markdown exclusions in grouped list output.

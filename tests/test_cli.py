@@ -136,11 +136,11 @@ def test_probe_list_marks_only_first_identical_same_line_duplicate_as_next(
         "tool.py",
         "  next EVO-010 line 1 Same.",
         "       EVO-010 line 1 Same.",
-        "warn DUPLICATE EVO-010",
+        "  warn DUPLICATE EVO-010",
     ]
 
 
-def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
+def test_probe_list_reports_malformed_markers_by_file(tmp_path: Path, capsys) -> None:
     marker = "TODO" + "(EVO-"
     source = tmp_path / "tool.py"
     source.write_text(f"# {marker}10): Missing zero padding.\n", encoding="utf-8")
@@ -148,7 +148,40 @@ def test_probe_list_reports_malformed_markers(tmp_path: Path, capsys) -> None:
     exit_code = main(["--root", str(tmp_path), "list"])
 
     assert exit_code == 0
-    assert "warn MALFORMED tool.py:1" in capsys.readouterr().out
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.py",
+        f"  warn MALFORMED line 1 # {marker}10): Missing zero padding.",
+    ]
+
+
+def test_probe_list_groups_duplicate_and_malformed_warnings_by_file(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    first = tmp_path / "first.py"
+    second = tmp_path / "second.py"
+    first.write_text(f"# {marker}010): Shared marker in first file.\n", encoding="utf-8")
+    second.write_text(
+        f"# {marker}010): Shared marker in second file.\n"
+        f"# {marker}10): Missing zero padding in second file.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "first.py",
+        "  next EVO-010 line 1 Shared marker in first file.",
+        "  warn DUPLICATE EVO-010",
+        "second.py",
+        "       EVO-010 line 1 Shared marker in second file.",
+        "  warn DUPLICATE EVO-010",
+        f"  warn MALFORMED line 2 # {marker}10): Missing zero padding in second file.",
+    ]
 
 
 def test_probe_list_discovers_markers_inside_docstrings(tmp_path: Path, capsys) -> None:
