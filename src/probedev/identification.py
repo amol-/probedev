@@ -15,9 +15,20 @@ VALID_MARKER_RE = re.compile(r"EVO-\d{3}")
 
 @dataclass(frozen=True)
 class IdentifiedEvolution:
-    """One marker that received a valid unique evolution id."""
+    """One marker with a valid unique evolution id."""
 
     marker: str
+    description: str
+    path: Path
+    line: int
+
+
+@dataclass(frozen=True)
+class RewrittenConflict:
+    """One conflicting marker that received a replacement evolution id."""
+
+    marker: str
+    original_marker: str
     description: str
     path: Path
     line: int
@@ -28,6 +39,8 @@ class IdentifyResult:
     """Summary of one identify command run."""
 
     identified: list[IdentifiedEvolution]
+    rewritten_conflicts: list[RewrittenConflict]
+    unchanged: list[IdentifiedEvolution]
 
 
 @dataclass(frozen=True)
@@ -62,6 +75,8 @@ class EvolutionIdentifier:
         kept_ids = self._kept_valid_ids(candidates)
         next_number = self._next_number(kept_ids)
         identified = []
+        rewritten_conflicts = []
+        unchanged = []
         replacements = {}
         used_ids = set(kept_ids)
         conflicts = self._conflicting_candidate_indexes(candidates)
@@ -75,18 +90,31 @@ class EvolutionIdentifier:
 
         for candidate_index, (candidate, match_index) in enumerate(candidate_slots):
             if candidate.has_valid_id and candidate.token in kept_ids and candidate_index not in conflicts:
+                unchanged.append(
+                    IdentifiedEvolution(candidate.token, candidate.description, candidate.path, candidate.line)
+                )
                 continue
             marker = self._next_marker(next_number, used_ids)
             next_number = int(marker.rsplit("-", 1)[1]) + 10
             used_ids.add(marker)
             replacements[(candidate.path, candidate.line)][match_index] = marker
-            identified.append(IdentifiedEvolution(marker, candidate.description, candidate.path, candidate.line))
+            if candidate_index in conflicts:
+                rewritten_conflicts.append(
+                    RewrittenConflict(
+                        marker,
+                        candidate.token,
+                        candidate.description,
+                        candidate.path,
+                        candidate.line,
+                    )
+                )
+            else:
+                identified.append(IdentifiedEvolution(marker, candidate.description, candidate.path, candidate.line))
 
         for path in {path for (path, _line), markers in replacements.items() if any(markers)}:
             self._rewrite_file(path, replacements)
 
-        # TODO(EVO-100): Report unchanged valid markers and rewritten conflicts separately for clearer command output.
-        return IdentifyResult(identified)
+        return IdentifyResult(identified, rewritten_conflicts, unchanged)
 
     def _scan_candidates(self, root: Path) -> list[EvolutionCandidate]:
         candidates = [

@@ -136,15 +136,30 @@ def run_identify(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -
     :param TextIO out: Output stream for command text.
     """
     result = EvolutionIdentifier().identify(workspace.root)
-    if not result.identified:
+    if not result.identified and not result.rewritten_conflicts:
         out.write("No evolution markers needed identifiers.\n")
-        return EXIT_SUCCESS
+        if not result.unchanged:
+            return EXIT_SUCCESS
 
-    out.write("Identified evolutions\n")
-    for evolution in result.identified:
-        out.write(f"- marker: {evolution.marker}\n")
-        out.write(f"  description: {evolution.description}\n")
-        out.write(f"  location: {evolution.path.relative_to(workspace.root)}:{evolution.line}\n")
+    if result.identified:
+        out.write("Identified evolutions\n")
+        for evolution in result.identified:
+            out.write(f"- marker: {evolution.marker}\n")
+            out.write(f"  description: {evolution.description}\n")
+            out.write(f"  location: {evolution.path.relative_to(workspace.root)}:{evolution.line}\n")
+    if result.rewritten_conflicts:
+        out.write("Rewritten conflicting evolutions\n")
+        for evolution in result.rewritten_conflicts:
+            out.write(f"- marker: {evolution.marker}\n")
+            out.write(f"  replaced: {evolution.original_marker}\n")
+            out.write(f"  description: {evolution.description}\n")
+            out.write(f"  location: {evolution.path.relative_to(workspace.root)}:{evolution.line}\n")
+    if result.unchanged:
+        out.write("Unchanged valid evolutions\n")
+        for evolution in result.unchanged:
+            out.write(f"- marker: {evolution.marker}\n")
+            out.write(f"  description: {evolution.description}\n")
+            out.write(f"  location: {evolution.path.relative_to(workspace.root)}:{evolution.line}\n")
     return EXIT_SUCCESS
 
 

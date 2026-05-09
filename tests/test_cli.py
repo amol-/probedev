@@ -1112,11 +1112,62 @@ def test_probe_identify_rewrites_same_line_candidates_needing_ids(tmp_path: Path
         "- marker: EVO-030",
         "  description: Add second missing id.",
         "  location: tool.py:1",
+        "Unchanged valid evolutions",
+        "- marker: EVO-010",
+        "  description: Keep this id.",
+        "  location: tool.py:1",
     ]
     assert source.read_text(encoding="utf-8") == (
         f"# {marker}-010): Keep this id.  # {marker}-020): Add first missing id.  "
         f"# {marker}-030): Add second missing id.\n"
     )
+
+
+def test_probe_identify_reports_rewritten_conflicts_separately(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        f"# {marker}010): Keep the first duplicate.\n"
+        f"# {marker}010): Rewrite the conflicting duplicate.\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "identify"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Rewritten conflicting evolutions",
+        "- marker: EVO-020",
+        "  replaced: EVO-010",
+        "  description: Rewrite the conflicting duplicate.",
+        "  location: tool.py:2",
+        "Unchanged valid evolutions",
+        "- marker: EVO-010",
+        "  description: Keep the first duplicate.",
+        "  location: tool.py:1",
+    ]
+    assert source.read_text(encoding="utf-8") == (
+        f"# {marker}010): Keep the first duplicate.\n"
+        f"# {marker}020): Rewrite the conflicting duplicate.\n"
+    )
+
+
+def test_probe_identify_reports_unchanged_valid_markers(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(f"# {marker}010): Keep this valid marker.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "identify"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "No evolution markers needed identifiers.",
+        "Unchanged valid evolutions",
+        "- marker: EVO-010",
+        "  description: Keep this valid marker.",
+        "  location: tool.py:1",
+    ]
+    assert source.read_text(encoding="utf-8") == f"# {marker}010): Keep this valid marker.\n"
 
 
 def test_probe_identify_preserves_rewritten_file_newlines_and_permissions(tmp_path: Path, capsys) -> None:
