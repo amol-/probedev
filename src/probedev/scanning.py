@@ -52,8 +52,27 @@ SOURCE_SUFFIXES = {
     ".dart",
 }
 # Recognized extensionless source filenames common in build/infra trees.
-# TODO(EVO-190): Decide whether to case-fold comparisons (e.g. ``.PY`` vs ``.py``, ``makefile`` vs ``Makefile``) and pattern-match common variants such as ``Dockerfile.prod`` / ``Makefile.inc`` that the current exact-match allowlist silently skips.
 SOURCE_FILENAMES = {"Makefile", "Dockerfile", "Rakefile", "Gemfile", "Jenkinsfile"}
+# Dotted variants that remain source-like in build/infra trees.
+SOURCE_FILENAME_PREFIXES = {"Makefile", "Dockerfile"}
+# Docs/configs stay excluded even when their base name looks like source.
+NON_SOURCE_SUFFIXES = {
+    ".cfg", ".conf", ".config",
+    ".feature",
+    ".ini",
+    ".json",
+    ".lock",
+    ".md", ".markdown",
+    ".rst",
+    ".toml",
+    ".txt",
+    ".xml",
+    ".yaml", ".yml",
+}
+_SOURCE_SUFFIXES = {suffix.casefold() for suffix in SOURCE_SUFFIXES}
+_NON_SOURCE_SUFFIXES = {suffix.casefold() for suffix in NON_SOURCE_SUFFIXES}
+_SOURCE_FILENAMES = {name.casefold() for name in SOURCE_FILENAMES}
+_SOURCE_FILENAME_PREFIXES = {name.casefold() for name in SOURCE_FILENAME_PREFIXES}
 
 
 def is_source_file(path: Path) -> bool:
@@ -67,7 +86,16 @@ def is_source_file(path: Path) -> bool:
 
     :param Path path: Filesystem path to classify.
     """
-    return path.suffix in SOURCE_SUFFIXES or path.name in SOURCE_FILENAMES
+    suffix = path.suffix.casefold()
+    if suffix in _SOURCE_SUFFIXES:
+        return True
+    if suffix in _NON_SOURCE_SUFFIXES:
+        return False
+
+    name = path.name.casefold()
+    return name in _SOURCE_FILENAMES or any(
+        name.startswith(f"{prefix}.") for prefix in _SOURCE_FILENAME_PREFIXES
+    )
 
 
 @dataclass(frozen=True)
@@ -168,7 +196,7 @@ def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
 
 def _candidate_description(path: Path, description: str) -> str:
     description = description.strip()
-    if path.suffix in {".ml", ".mli"} and description.endswith("*)"):
+    if path.suffix.casefold() in {".ml", ".mli"} and description.endswith("*)"):
         return description[:-2].rstrip()
     return description
 

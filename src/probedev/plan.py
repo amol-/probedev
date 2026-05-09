@@ -175,7 +175,7 @@ class ProbePlanParser:
 
     def _python_docstring_end_lines(self, file: FileCandidates) -> dict[int, int]:
         """Return real Python docstring line numbers mapped to their end line."""
-        if file.path.suffix not in {".py", ".pyi"}:
+        if file.path.suffix.casefold() not in {".py", ".pyi"}:
             return {}
         try:
             module = ast.parse("\n".join(file.lines))

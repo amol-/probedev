@@ -13,7 +13,7 @@ import probedev.show
 from probedev.cli import Workspace, build_parser, main, run_show
 from probedev.identification import EvolutionIdentifier
 from probedev.plan import ProbePlanParser
-from probedev.scanning import SOURCE_FILENAMES, SOURCE_SUFFIXES, scan_candidates
+from probedev.scanning import SOURCE_FILENAME_PREFIXES, SOURCE_FILENAMES, SOURCE_SUFFIXES, scan_candidates
 
 
 class TrackingOutput(StringIO):
@@ -649,7 +649,9 @@ ADD_COMMENT_STYLE_FILENAME_CASES = [
 
 def test_probe_add_comment_style_cases_cover_scanner_allowlist() -> None:
     assert {suffix for suffix, _prefix, _suffix in ADD_COMMENT_STYLE_SUFFIX_CASES} == SOURCE_SUFFIXES
-    assert {name for name, _prefix, _suffix in ADD_COMMENT_STYLE_FILENAME_CASES} == SOURCE_FILENAMES
+    filename_cases = {name for name, _prefix, _suffix in ADD_COMMENT_STYLE_FILENAME_CASES}
+    assert filename_cases == SOURCE_FILENAMES
+    assert SOURCE_FILENAME_PREFIXES <= filename_cases
 
 
 @pytest.mark.parametrize(("suffix", "prefix", "comment_suffix"), ADD_COMMENT_STYLE_SUFFIX_CASES)
@@ -690,6 +692,46 @@ def test_probe_add_uses_language_comment_style_for_scannable_filename(
         f"{prefix} {marker}010): Add a filename-specific evolution."
         f"{f' {comment_suffix}' if comment_suffix else ''}\n"
     )
+
+
+@pytest.mark.parametrize("target_name", ["target.PY", "makefile", "Dockerfile.prod", "Makefile.inc"])
+def test_probe_add_records_common_source_filename_casing_and_variants(
+    tmp_path: Path,
+    capsys,
+    target_name: str,
+) -> None:
+    marker = "TODO" + "(EVO-"
+
+    exit_code = main(["--root", str(tmp_path), "add", target_name, "Add a variant source marker."])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+    assert (tmp_path / target_name).read_text(encoding="utf-8") == (
+        f"# {marker}010): Add a variant source marker.\n"
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        target_name,
+        "  next EVO-010 line 1 Add a variant source marker.",
+    ]
+
+
+@pytest.mark.parametrize("target_name", ["Dockerfile.md", "Dockerfile.prod.md", "Makefile.toml", "Makefile.inc.json"])
+def test_probe_add_rejects_prefixed_doc_config_variants(
+    tmp_path: Path,
+    capsys,
+    target_name: str,
+) -> None:
+    exit_code = main(["--root", str(tmp_path), "add", target_name, "Add a hidden marker."])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert output.startswith("Could not add evolution: target path is not a scannable source file:")
+    assert not (tmp_path / target_name).exists()
 
 
 @pytest.mark.parametrize(
@@ -1028,14 +1070,85 @@ def test_probe_plan_ignores_non_source_extensions(tmp_path: Path) -> None:
     not appear as pending evolutions.
     """
     marker = "TODO" + "(EVO-"
-    (tmp_path / "spec.feature").write_text(f"# {marker}010): Not a source file.\n", encoding="utf-8")
-    (tmp_path / "notes.unknownext").write_text(f"# {marker}020): Unknown extension.\n", encoding="utf-8")
-    (tmp_path / "tool.py").write_text(f"# {marker}030): A real source marker.\n", encoding="utf-8")
+    (tmp_path / "README.MD").write_text(f"# {marker}010): Markdown is not source.\n", encoding="utf-8")
+    (tmp_path / "data.json").write_text(f"# {marker}020): JSON is not source.\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(f"# {marker}030): TOML is not source.\n", encoding="utf-8")
+    (tmp_path / "app.config").write_text(f"# {marker}040): Config is not source.\n", encoding="utf-8")
+    (tmp_path / "spec.feature").write_text(f"# {marker}050): Feature is not source.\n", encoding="utf-8")
+    (tmp_path / "notes.unknownext").write_text(f"# {marker}060): Unknown extension.\n", encoding="utf-8")
+    (tmp_path / "tool.py").write_text(f"# {marker}070): A real source marker.\n", encoding="utf-8")
 
     plan = ProbePlanParser().scan(tmp_path)
 
     scanned = {evolution.path.name for evolution in plan.evolutions}
     assert scanned == {"tool.py"}
+
+
+def test_probe_plan_includes_common_source_filename_casing_and_variants(tmp_path: Path) -> None:
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "tool.PY").write_text(f"# {marker}010): Uppercase suffix.\n", encoding="utf-8")
+    (tmp_path / "makefile").write_text(f"# {marker}020): Lowercase makefile.\n", encoding="utf-8")
+    (tmp_path / "Dockerfile.prod").write_text(f"# {marker}030): Dockerfile variant.\n", encoding="utf-8")
+    (tmp_path / "Makefile.inc").write_text(f"# {marker}040): Makefile variant.\n", encoding="utf-8")
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    scanned = {evolution.path.name for evolution in plan.evolutions}
+    assert scanned == {"tool.PY", "makefile", "Dockerfile.prod", "Makefile.inc"}
+
+
+def test_probe_plan_strips_uppercase_ocaml_block_comment_suffix(tmp_path: Path) -> None:
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "target.ML").write_text(f"(* {marker}010): Uppercase OCaml marker. *)\n", encoding="utf-8")
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [evolution.title for evolution in plan.evolutions] == ["Uppercase OCaml marker."]
+
+
+def test_probe_plan_collects_docstring_continuation_for_uppercase_python_suffix(tmp_path: Path) -> None:
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "tool.PY").write_text(
+        f'"""\n{marker}010): Uppercase Python docstring.\nKeep the continuation.\n"""\n',
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [evolution.description_lines for evolution in plan.evolutions] == [
+        ("Uppercase Python docstring.", "Keep the continuation.")
+    ]
+
+
+def test_probe_plan_excludes_prefixed_doc_config_variants(tmp_path: Path) -> None:
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "Dockerfile.prod").write_text(f"# {marker}010): Real Docker variant.\n", encoding="utf-8")
+    (tmp_path / "Makefile.inc").write_text(f"# {marker}020): Real Make variant.\n", encoding="utf-8")
+    (tmp_path / "Dockerfile.md").write_text(f"# {marker}030): Docker docs.\n", encoding="utf-8")
+    (tmp_path / "Dockerfile.prod.md").write_text(f"# {marker}040): Docker variant docs.\n", encoding="utf-8")
+    (tmp_path / "Makefile.toml").write_text(f"# {marker}050): Make config.\n", encoding="utf-8")
+    (tmp_path / "Makefile.inc.json").write_text(f"# {marker}060): Make variant config.\n", encoding="utf-8")
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    scanned = {evolution.path.name for evolution in plan.evolutions}
+    assert scanned == {"Dockerfile.prod", "Makefile.inc"}
+
+
+def test_probe_list_excludes_prefixed_doc_config_variants(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "Dockerfile.prod").write_text(f"# {marker}010): Real Docker variant.\n", encoding="utf-8")
+    (tmp_path / "Dockerfile.prod.md").write_text(f"# {marker}020): Docker variant docs.\n", encoding="utf-8")
+    (tmp_path / "Makefile.inc.json").write_text(f"# {marker}030): Make variant config.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "Dockerfile.prod",
+        "  next EVO-010 line 1 Real Docker variant.",
+    ]
 
 
 def test_probe_plan_includes_recognized_extensionless_source_files(tmp_path: Path) -> None:

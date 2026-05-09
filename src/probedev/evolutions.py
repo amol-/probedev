@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from probedev.plan import ProbePlan, sequence_name
-from probedev.scanning import SOURCE_FILENAMES, SOURCE_SUFFIXES, is_source_file
+from probedev.scanning import SOURCE_FILENAME_PREFIXES, is_source_file
 
 
 @dataclass(frozen=True)
@@ -146,11 +146,19 @@ class EvolutionRecorder:
         return len(lines) + (1 if lines and lines[-1].strip() else 0)
 
     def _comment_style(self, path: Path) -> _CommentStyle:
-        if path.name in _COMMENT_STYLE_BY_FILENAME:
-            return _COMMENT_STYLE_BY_FILENAME[path.name]
-        if path.suffix in _COMMENT_STYLE_BY_SUFFIX:
-            return _COMMENT_STYLE_BY_SUFFIX[path.suffix]
-        if path.suffix in SOURCE_SUFFIXES or path.name in SOURCE_FILENAMES:
+        suffix = path.suffix.casefold()
+        if suffix in _COMMENT_STYLE_BY_SUFFIX:
+            return _COMMENT_STYLE_BY_SUFFIX[suffix]
+
+        name = path.name.casefold()
+        for filename, style in _COMMENT_STYLE_BY_FILENAME.items():
+            if name == filename.casefold():
+                return style
+        for filename in SOURCE_FILENAME_PREFIXES:
+            if name.startswith(f"{filename.casefold()}."):
+                return _COMMENT_STYLE_BY_FILENAME[filename]
+
+        if is_source_file(path):
             raise ValueError(f"no comment style configured for scannable source file: {path}")
         raise ValueError(f"target path is not a scannable source file: {path}")
 
