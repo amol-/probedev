@@ -5,6 +5,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -88,8 +89,6 @@ class EvolutionShower:
 class EditorResolver:
     """Resolve the editor command for a file and line location."""
 
-    DEFAULT_EDITORS = ("code", "vim", "vi")
-
     def __init__(self, env: Mapping[str, str]) -> None:
         self._env = env
 
@@ -103,8 +102,11 @@ class EditorResolver:
         if configured is None:
             configured = self._default_editor()
         if configured is None:
-            # TODO(EVO-120): Add platform-specific default editor discovery and a user-facing setup hint when none is available.
-            raise RuntimeError("No editor configured and no default editor found.")
+            raise RuntimeError(
+                "No editor configured and no default editor found. "
+                "Set CODE_EDITOR or EDITOR to your editor command, "
+                "for example: CODE_EDITOR='code --wait'."
+            )
         return EditorCommand(self._argv_for(configured, path, line))
 
     def _configured_editor(self) -> list[str] | None:
@@ -115,14 +117,32 @@ class EditorResolver:
         return None
 
     def _default_editor(self) -> list[str] | None:
-        for editor in self.DEFAULT_EDITORS:
+        if sys.platform.startswith("win"):
+            candidates = (
+                "code.cmd",
+                "code.exe",
+                "code",
+                "nvim.exe",
+                "vim.exe",
+                "vi.exe",
+                "nvim",
+                "vim",
+                "vi",
+            )
+        else:
+            candidates = ("code", "code-insiders", "codium", "nvim", "vim", "vi")
+
+        for editor in candidates:
             resolved = shutil.which(editor)
             if resolved:
                 return [resolved]
         return None
 
     def _argv_for(self, editor: list[str], path: Path, line: int) -> list[str]:
-        executable = Path(editor[0]).name
+        executable = Path(editor[0]).name.lower().rsplit("\\", 1)[-1]
+        for suffix in (".cmd", ".exe"):
+            if executable.endswith(suffix):
+                executable = executable.removesuffix(suffix)
         if executable in {"code", "code-insiders", "codium"}:
             return [*editor, "--goto", f"{path}:{line}"]
         if executable in {"vim", "vi", "nvim"}:

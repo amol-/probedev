@@ -1006,6 +1006,92 @@ def test_probe_show_nonzero_editor_exit_fails_with_attempted_command(
     assert out.flushed
 
 
+@pytest.mark.parametrize(
+    ("platform", "available_editor", "resolved_editor", "expected_lookup", "expected_argv"),
+    [
+        (
+            "linux",
+            "nvim",
+            "/usr/bin/nvim",
+            ["code", "code-insiders", "codium", "nvim"],
+            ["/usr/bin/nvim", "+7", "tool.py"],
+        ),
+        (
+            "darwin",
+            "codium",
+            "/usr/local/bin/codium",
+            ["code", "code-insiders", "codium"],
+            ["/usr/local/bin/codium", "--goto", "tool.py:7"],
+        ),
+        (
+            "win32",
+            "nvim.exe",
+            r"C:\Program Files\Neovim\bin\nvim.exe",
+            ["code.cmd", "code.exe", "code", "nvim.exe"],
+            [r"C:\Program Files\Neovim\bin\nvim.exe", "+7", "tool.py"],
+        ),
+    ],
+)
+def test_editor_resolver_discovers_platform_default_editors_with_line_positioning(
+    platform: str,
+    available_editor: str,
+    resolved_editor: str,
+    expected_lookup: list[str],
+    expected_argv: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    looked_up: list[str] = []
+
+    def fake_which(editor: str) -> str | None:
+        looked_up.append(editor)
+        return resolved_editor if editor == available_editor else None
+
+    monkeypatch.setattr(probedev.show.sys, "platform", platform)
+    monkeypatch.setattr(probedev.show.shutil, "which", fake_which)
+
+    command = probedev.show.EditorResolver({}).for_location(Path("tool.py"), 7)
+
+    assert command.argv == expected_argv
+    assert looked_up == expected_lookup
+
+
+@pytest.mark.parametrize("available_editor", ["nvim.exe", "vim.exe", "vi.exe"])
+def test_editor_resolver_positions_windows_vim_family_default_executables(
+    available_editor: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolved_editor = rf"C:\Tools\{available_editor}"
+
+    def fake_which(editor: str) -> str | None:
+        return resolved_editor if editor == available_editor else None
+
+    monkeypatch.setattr(probedev.show.sys, "platform", "win32")
+    monkeypatch.setattr(probedev.show.shutil, "which", fake_which)
+
+    command = probedev.show.EditorResolver({}).for_location(Path("tool.py"), 7)
+
+    assert command.argv == [resolved_editor, "+7", "tool.py"]
+
+
+def test_probe_show_without_any_editor_reports_setup_hint(
+    project_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = TrackingOutput()
+
+    monkeypatch.delenv("CODE_EDITOR", raising=False)
+    monkeypatch.delenv("EDITOR", raising=False)
+    monkeypatch.setattr(probedev.show.shutil, "which", lambda _editor: None)
+
+    exit_code = run_show(argparse.Namespace(marker="EVO-010"), Workspace(project_root), out)
+
+    output = out.getvalue()
+    assert exit_code == 1
+    assert "No editor configured and no default editor found" in output
+    assert "Set CODE_EDITOR or EDITOR to your editor command" in output
+    assert "Opening evolution" not in output
+
+
 def test_probe_identify_rewrites_same_line_candidates_needing_ids(tmp_path: Path, capsys) -> None:
     marker = "TODO" + "(EVO"
     source = tmp_path / "tool.py"
