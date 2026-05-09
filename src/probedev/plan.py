@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,13 +113,21 @@ class ProbePlanParser:
         # continuation lines up to (but not including) the next candidate so
         # continuation scanning never crosses into the next evolution.
         candidates = list(file.candidates)
+        docstring_end_lines = self._python_docstring_end_lines(file)
         for index, candidate in enumerate(candidates):
             next_line = candidates[index + 1].line if index + 1 < len(candidates) else len(file.lines) + 1
             if not VALID_MARKER_RE.fullmatch(candidate.token) or not candidate.description:
                 malformed.append(MalformedEvolution(candidate.text.strip(), file.path, candidate.line))
                 continue
+            marker_prefix = self._marker_line_prefix(candidate.text)
+            docstring_end_line = docstring_end_lines.get(candidate.line)
             continuation = self._collect_continuation_lines(
-                file.lines, candidate.line, next_line, self._marker_line_prefix(candidate.text)
+                file.lines,
+                candidate.line,
+                next_line,
+                marker_prefix,
+                bool(marker_prefix.strip()) or docstring_end_line is not None,
+                docstring_end_line,
             )
             evolutions.append(
                 Evolution(candidate.token, candidate.description, file.path, candidate.line, continuation)
@@ -130,21 +139,31 @@ class ProbePlanParser:
         marker_line: int,
         next_candidate_line: int,
         marker_prefix: str,
+        allow_continuations: bool,
+        docstring_end_line: int | None,
     ) -> tuple[str, ...]:
         """Collect adjacent lines that share the marker's line prefix.
 
         A line continues the evolution description when it starts with the
         same leading prefix as the marker line — whether that prefix is a
-        ``# `` comment lead, a ``// `` lead, or plain indentation inside a
-        docstring. This keeps the parser language-agnostic without needing a
-        comment-syntax table. Scanning stops at the next marker candidate so
-        continuations never cross into another evolution.
+        ``# `` comment lead, a ``// `` lead, or indentation inside a docstring.
+        Scanning stops at the next marker candidate, and docstring markers are
+        additionally bounded to the AST docstring span.
         """
+        if not allow_continuations:
+            return ()
+        scan_stop_line = next_candidate_line - 1
+        if docstring_end_line is not None:
+            scan_stop_line = min(scan_stop_line, docstring_end_line)
         continuation: list[str] = []
-        for index in range(marker_line, next_candidate_line - 1):
+        for index in range(marker_line, scan_stop_line):
             if has_ignore_pragma(lines[index]) or CANDIDATE_RE.search(lines[index]):
                 break
-            text = self._continuation_text(lines[index], marker_prefix)
+            text = self._continuation_text(
+                lines[index],
+                marker_prefix,
+                docstring_end_line is not None and index == docstring_end_line - 1,
+            )
             if text is None:
                 break
             continuation.append(text)
@@ -152,10 +171,45 @@ class ProbePlanParser:
 
     def _marker_line_prefix(self, line: str) -> str:
         """Return the leading whitespace + optional comment lead of a marker line."""
-        # TODO(EVO-140): Guard continuation-line collection when the marker prefix has no comment lead (column-0 plain-text markers and indent-only markers inside string literals) so unrelated following lines at the same indent are not swallowed as continuations.
         return line[: len(line) - len(line.lstrip())] + self._comment_lead(line.lstrip())
 
-    def _continuation_text(self, line: str, marker_prefix: str) -> str | None:
+    def _python_docstring_end_lines(self, file: FileCandidates) -> dict[int, int]:
+        """Return real Python docstring line numbers mapped to their end line."""
+        if file.path.suffix not in {".py", ".pyi"}:
+            return {}
+        try:
+            module = ast.parse("\n".join(file.lines))
+        except SyntaxError:
+            return {}
+
+        docstring_end_lines: dict[int, int] = {}
+
+        def add_first_statement_docstring(body: list[ast.stmt]) -> None:
+            if not body:
+                return
+            statement = body[0]
+            if not (
+                isinstance(statement, ast.Expr)
+                and isinstance(statement.value, ast.Constant)
+                and isinstance(statement.value.value, str)
+                and statement.end_lineno is not None
+            ):
+                return
+            for line_number in range(statement.lineno, statement.end_lineno + 1):
+                docstring_end_lines[line_number] = statement.end_lineno
+
+        add_first_statement_docstring(module.body)
+        for node in ast.walk(module):
+            if isinstance(node, (ast.AsyncFunctionDef, ast.ClassDef, ast.FunctionDef)):
+                add_first_statement_docstring(node.body)
+        return docstring_end_lines
+
+    def _continuation_text(
+        self,
+        line: str,
+        marker_prefix: str,
+        strip_docstring_delimiter: bool = False,
+    ) -> str | None:
         """Return the stripped continuation text, or None if the line is not a continuation.
 
         Accepts two prefix shapes so that block-style comments work:
@@ -172,6 +226,11 @@ class ProbePlanParser:
             if remainder is None:
                 return None
         stripped = remainder.strip().removesuffix("*/").removesuffix("-->").strip()
+        if strip_docstring_delimiter:
+            for delimiter in ('"""', "'''"):
+                if stripped.endswith(delimiter):
+                    stripped = stripped[: -len(delimiter)].rstrip()
+                    break
         if not stripped:
             return None
         # Treat bare docstring/block closers as end-of-continuation, not

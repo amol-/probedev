@@ -232,6 +232,127 @@ def test_probe_list_prints_multiline_evolution_description_with_aligned_continua
     ]
 
 
+def test_probe_plan_does_not_collect_continuations_for_no_comment_non_docstring_markers(
+    tmp_path: Path,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    plain = tmp_path / "plain.py"
+    plain.write_text(
+        "\n".join(
+            [
+                f"{marker}010): Add the plain step.",
+                "unrelated plain text at column zero",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    string_literal = tmp_path / "fixture.py"
+    string_literal.write_text(
+        "\n".join(
+            [
+                'EXAMPLE = """',
+                f"    {marker}020): Add the fixture step.",
+                "    unrelated fixture text at the same indent",
+                '    """',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title, evolution.continuation_lines) for evolution in plan.evolutions] == [
+        ("EVO-010", "Add the plain step.", ()),
+        ("EVO-020", "Add the fixture step.", ()),
+    ]
+
+
+def test_probe_plan_does_not_collect_continuations_for_standalone_triple_quote_assignment(
+    tmp_path: Path,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "fixture.py"
+    source.write_text(
+        "\n".join(
+            [
+                "EXAMPLE = (",
+                '    """',
+                f"    {marker}010): Add the fixture step.",
+                "    unrelated fixture text at the same indent",
+                '    """',
+                ")",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title, evolution.continuation_lines) for evolution in plan.evolutions] == [
+        ("EVO-010", "Add the fixture step.", ()),
+    ]
+
+
+def test_probe_plan_collects_continuations_for_docstring_markers(
+    tmp_path: Path,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                "def handler():",
+                '    """Do the thing.',
+                "",
+                f"    {marker}010): Honour the env override once the parser stabilizes.",
+                "    keep this docstring detail with the evolution.",
+                '    """',
+                "    return None",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title, evolution.continuation_lines) for evolution in plan.evolutions] == [
+        (
+            "EVO-010",
+            "Honour the env override once the parser stabilizes.",
+            ("keep this docstring detail with the evolution.",),
+        )
+    ]
+
+
+def test_probe_plan_bounds_docstring_continuations_when_closing_quote_shares_final_text(
+    tmp_path: Path,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                "def handler():",
+                '    """Do the thing.',
+                f"    {marker}010): Keep the docstring detail.",
+                '    final detail shares the closing delimiter."""',
+                "    return 'executable code is not continuation text'",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title, evolution.continuation_lines) for evolution in plan.evolutions] == [
+        (
+            "EVO-010",
+            "Keep the docstring detail.",
+            ("final detail shares the closing delimiter.",),
+        )
+    ]
+
+
 def test_probe_list_does_not_swallow_ocaml_code_after_one_line_marker(
     tmp_path: Path,
     capsys,
