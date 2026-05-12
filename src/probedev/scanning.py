@@ -52,7 +52,7 @@ SOURCE_SUFFIXES = {
     ".dart",
 }
 # Recognized extensionless source filenames common in build/infra trees.
-SOURCE_FILENAMES = {"Makefile", "Dockerfile", "Rakefile", "Gemfile", "Jenkinsfile"}
+SOURCE_FILENAMES = {"Makefile", "Dockerfile", "Rakefile", "Gemfile", "Jenkinsfile", "Evolutions.txt"}
 # Dotted variants that remain source-like in build/infra trees.
 SOURCE_FILENAME_PREFIXES = {"Makefile", "Dockerfile"}
 # Docs/configs stay excluded even when their base name looks like source.
@@ -86,16 +86,17 @@ def is_source_file(path: Path) -> bool:
 
     :param Path path: Filesystem path to classify.
     """
+    name = path.name.casefold()
+    if name in _SOURCE_FILENAMES:
+        return True
+
     suffix = path.suffix.casefold()
     if suffix in _SOURCE_SUFFIXES:
         return True
     if suffix in _NON_SOURCE_SUFFIXES:
         return False
 
-    name = path.name.casefold()
-    return name in _SOURCE_FILENAMES or any(
-        name.startswith(f"{prefix}.") for prefix in _SOURCE_FILENAME_PREFIXES
-    )
+    return any(name.startswith(f"{prefix}.") for prefix in _SOURCE_FILENAME_PREFIXES)
 
 
 @dataclass(frozen=True)

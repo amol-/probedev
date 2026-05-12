@@ -670,6 +670,7 @@ ADD_COMMENT_STYLE_FILENAME_CASES = [
     ("Rakefile", "#", ""),
     ("Gemfile", "#", ""),
     ("Jenkinsfile", "//", ""),
+    ("Evolutions.txt", "#", ""),
 ]
 
 
@@ -1309,11 +1310,12 @@ def test_probe_plan_includes_common_source_filename_casing_and_variants(tmp_path
     (tmp_path / "makefile").write_text(f"# {marker}020): Lowercase makefile.\n", encoding="utf-8")
     (tmp_path / "Dockerfile.prod").write_text(f"# {marker}030): Dockerfile variant.\n", encoding="utf-8")
     (tmp_path / "Makefile.inc").write_text(f"# {marker}040): Makefile variant.\n", encoding="utf-8")
+    (tmp_path / "Evolutions.txt").write_text(f"# {marker}050): Full filename allowlist beats suffix exclusions.\n", encoding="utf-8")
 
     plan = ProbePlanParser().scan(tmp_path)
 
     scanned = {evolution.path.name for evolution in plan.evolutions}
-    assert scanned == {"tool.PY", "makefile", "Dockerfile.prod", "Makefile.inc"}
+    assert scanned == {"tool.PY", "makefile", "Dockerfile.prod", "Makefile.inc", "Evolutions.txt"}
 
 
 def test_probe_plan_strips_uppercase_ocaml_block_comment_suffix(tmp_path: Path) -> None:
@@ -1367,6 +1369,21 @@ def test_probe_list_excludes_prefixed_doc_config_variants(tmp_path: Path, capsys
         "Pending evolutions",
         "Dockerfile.prod",
         "  next EVO-010 line 1 Real Docker variant.",
+    ]
+
+
+def test_probe_list_includes_recognized_full_filename_before_suffix_exclusion(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    (tmp_path / "Evolutions.txt").write_text(f"# {marker}010): Keep the text-file plan visible.\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text(f"# {marker}020): Ordinary text files stay hidden.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "list"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "Evolutions.txt",
+        "  next EVO-010 line 1 Keep the text-file plan visible.",
     ]
 
 

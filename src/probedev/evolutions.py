@@ -197,4 +197,5 @@ _COMMENT_STYLE_BY_FILENAME = {
     "Rakefile": _CommentStyle("#"),
     "Gemfile": _CommentStyle("#"),
     "Jenkinsfile": _CommentStyle("//"),
+    "Evolutions.txt": _CommentStyle("#"),
 }
