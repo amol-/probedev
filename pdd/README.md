@@ -160,6 +160,8 @@ Rules:
 - Each evolution must describe one concrete step.
 - Each marker must be placed where the work belongs.
 - Nearby code must provide enough context for an agent and developer to apply the evolution.
+- Prefer placing each evolution in the source file closest to the code that should evolve.
+- Use directory-level `Evolutions.txt` only when no specific code location owns the work.
 - Evolutions must be updated when the plan changes.
 - An evolution may be replaced by more precise evolutions if applying it reveals necessary substeps.
 
@@ -168,7 +170,7 @@ Use one ordered `EVO-XXX` sequence for the current agreed scope. If the project 
 ### Command Rules
 
 - `probedev list` reads the ordered plan from code.
-- `probedev add` records one new ordered evolution marker with a unique ID at the end of a requested source file or `<dir>/Evolutions.txt` for an existing directory target.
+- `probedev add` records one new ordered evolution marker with a unique ID at the end of a requested source file or `<dir>/Evolutions.txt` for an existing directory target. Directory targets are for work that is not related to a specific code location; otherwise keep the marker close to the code that should evolve.
 
 Keep this separation strict. The command line tool manages project-state visibility. Coding agents handle discussion, refinement, challenge, and applying evolutions because those activities require judgment and code changes.
 

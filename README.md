@@ -71,6 +71,8 @@ Add one ordered evolution to the code-local probe plan.
 
 This command records a `TODO(EVO-...)` marker without applying the work. It requires a source file or existing directory and an evolution description, assigns the next unique ID in the default sequence, and appends the marker to the end of the requested file. Directory targets write to `<dir>/Evolutions.txt`.
 
+Use directory-level `Evolutions.txt` only when the evolution is not related to a specific code location. The best practice is to keep evolutions in the source file closest to the code that should evolve, so an agent or developer sees the evolution and the execution context together without extra lookups.
+
 ```bash
 % probedev add src/probedev/show.py when opening an evolution with editor it should print what editor is going to use
 Added evolution
