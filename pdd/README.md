@@ -168,7 +168,7 @@ Use one ordered `EVO-XXX` sequence for the current agreed scope. If the project 
 ### Command Rules
 
 - `probedev list` reads the ordered plan from code.
-- `probedev add` records one new ordered evolution marker with a unique ID at the end of a requested file.
+- `probedev add` records one new ordered evolution marker with a unique ID at the end of a requested source file or `<dir>/Evolutions.txt` for an existing directory target.
 
 Keep this separation strict. The command line tool manages project-state visibility. Coding agents handle discussion, refinement, challenge, and applying evolutions because those activities require judgment and code changes.
 

@@ -235,6 +235,11 @@ def workspace_has_ordered_evolution_markers(command_context: CommandContext, mar
     write_source(command_context.root, f"# {marker_prefix}010): Add the first step.\n")
 
 
+@given("the workspace has an existing source directory")
+def workspace_has_existing_source_directory(command_context: CommandContext) -> None:
+    command_context.root.joinpath("src").mkdir()
+
+
 # probedev: ignore-end
 
 
@@ -330,6 +335,11 @@ def run_add_with_description(command_context: CommandContext, capsys: pytest.Cap
 @when("the developer runs `probedev add` with a target file and new evolution description")
 def run_add_with_target_file(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["add", "src/tool.py", "Add a path-specific evolution."])
+
+
+@when("the developer runs `probedev add` with a directory and new evolution description")
+def run_add_with_directory(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["add", "src", "Add a directory evolution."])
 
 
 @when("the developer runs `probedev identify`")
@@ -467,11 +477,21 @@ def assert_add_records_marker(command_context: CommandContext) -> None:
 
 @then("the marker is visible to `probedev list`")
 def assert_recorded_marker_is_listed(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    recorded = {}
+    for line in command_context.output.splitlines():
+        if line.startswith("- marker: "):
+            recorded["marker"] = line.removeprefix("- marker: ")
+        elif line.startswith("- description: "):
+            recorded["description"] = line.removeprefix("- description: ")
+        elif line.startswith("- location: "):
+            recorded["path"] = line.removeprefix("- location: ").rsplit(":", 1)[0]
+
     exit_code = main(["--root", str(command_context.root), "list"])
     output = capsys.readouterr().out
     assert exit_code == 0
-    assert "EVO-" in output
-    assert "Add README-aware refinement." in output
+    assert recorded["path"] in output
+    assert recorded["marker"] in output
+    assert recorded["description"] in output
 
 
 # probedev: ignore-start
@@ -488,6 +508,15 @@ def assert_marker_written_to_requested_path(command_context: CommandContext) -> 
     assert (command_context.root / "src" / "tool.py").read_text(encoding="utf-8") == (
         "# TODO(EVO-020): Add a path-specific evolution.\n"
     )
+
+
+@then("the system creates or appends to Evolutions.txt in that directory")
+def assert_evolutions_txt_created_or_appended(command_context: CommandContext) -> None:
+    assert "- location: src/Evolutions.txt:1" in command_context.output
+    evolutions_file = command_context.root / "src" / "Evolutions.txt"
+    assert evolutions_file.exists()
+    content = evolutions_file.read_text(encoding="utf-8")
+    assert "# TODO(EVO-020): Add a directory evolution." in content
 
 
 @then("the system assigns unique evolution ids")

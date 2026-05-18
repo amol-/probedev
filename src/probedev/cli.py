@@ -59,7 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     show = add_command("show", "open one evolution marker in an editor", run_show)
     show.add_argument("marker", help="evolution id to open, such as EVO-010")
     add = add_command("add", "add one ordered evolution marker", run_add)
-    add.add_argument("path", type=Path, help="source file where the evolution marker belongs")
+    add.add_argument(
+        "path",
+        type=Path,
+        help="source file or existing directory where the evolution marker belongs; directories use Evolutions.txt",
+    )
     add.add_argument("description", nargs="+", help="evolution description to record")
 
     return parser

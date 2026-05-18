@@ -1,14 +1,15 @@
 @feature:F-COMMANDS-ADD
 Feature: Add an evolution
 
-  Developers use add to record one new ordered evolution in a specific source file.
+  Developers use add to record one new ordered evolution in a source file or existing directory.
 
   Rules:
     - Add assigns the next unique id in the default evolution sequence.
-    - Add requires a source file and an evolution description.
+    - Add requires a source file or directory and an evolution description.
     - Add records the requested description without applying the evolution.
-    - Add appends the marker at the end of the requested file.
+    - Add appends the marker at the end of the requested file or the directory's Evolutions.txt.
     - Add creates a missing requested file when it is a scannable source path.
+    - Add creates or appends to Evolutions.txt when the target path is a directory.
     - Add keeps the resulting marker visible to list.
     - Add refuses to allocate an id when the plan scan skipped unreadable source files.
 
@@ -45,3 +46,13 @@ Feature: Add an evolution
     Then the system reports that add could not scan the complete plan
     And no new marker is appended to the requested file
     And the command fails.
+
+  @id:F-COMMANDS-ADD-S005
+  Scenario: Add writes to Evolutions.txt when target path is a directory
+    Given a workspace with README intent
+    And the workspace has ordered evolution markers
+    And the workspace has an existing source directory
+    When the developer runs `probedev add` with a directory and new evolution description
+    Then the system creates or appends to Evolutions.txt in that directory
+    And the marker is visible to `probedev list`
+    And the command succeeds.

@@ -4,7 +4,10 @@ Agents speak code. Developers speak code. Specs were invented to communicate bet
 
 Code-First Probe-Driven Development is a project management and software development workflow that never leaves code. A software idea starts as a short README description, becomes an executable architectural probe, and then evolves through ordered evolutions anchored by `TODO(EVO-...)` markers at the exact code locations where the work belongs.
 
-The codebase is the source of truth. The README explains intent. The probe shows architecture. The ordered evolutions are the plan.
+* The codebase is the single source of truth.
+* The README or the BDD specs explain intent.
+* The architectural probe shows architecture.
+* The ordered evolutions are the implementation plan.
 
 An evolution is not just one line of text. It is closer to an issue in an issue tracker, but code-local: the `TODO(EVO-...)` line gives the ID, order, and short title; the surrounding code, names, comments, types, tests, and optional linked BDD feature file provide the context needed to apply it.
 
@@ -66,7 +69,7 @@ src/probedev/show.py
 
 Add one ordered evolution to the code-local probe plan.
 
-This command records a `TODO(EVO-...)` marker without applying the work. It requires a source file and an evolution description, assigns the next unique ID in the default sequence, and appends the marker to the end of the requested file.
+This command records a `TODO(EVO-...)` marker without applying the work. It requires a source file or existing directory and an evolution description, assigns the next unique ID in the default sequence, and appends the marker to the end of the requested file. Directory targets write to `<dir>/Evolutions.txt`.
 
 ```bash
 % probedev add src/probedev/show.py when opening an evolution with editor it should print what editor is going to use

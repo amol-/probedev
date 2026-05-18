@@ -6,12 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from probedev.plan import ProbePlan, sequence_name
-from probedev.scanning import SOURCE_FILENAME_PREFIXES, is_source_file
+from probedev.scanning import SKIPPED_DIRS, SOURCE_FILENAME_PREFIXES, is_source_file
 
 
 @dataclass(frozen=True)
 class AddEvolutionRequest:
-    """User request to append one evolution marker to a source file."""
+    """User request to append one marker.
+
+    The target can be a source file or an existing directory that receives
+    the marker in Evolutions.txt.
+    """
 
     description: str
     path: Path
@@ -53,9 +57,10 @@ class EvolutionIdAllocator:
 class EvolutionRecorder:
     """Append new probe evolutions as code-local TODO markers.
 
-    The add command's architecture is intentionally narrow: parse a file and
-    description at the CLI boundary, scan the current plan, allocate the next
-    default-sequence id, then append one marker to the requested file.
+    The add command's architecture is intentionally narrow: parse a file or
+    directory and description at the CLI boundary, scan the current plan,
+    allocate the next default-sequence id, then append one marker to the
+    requested file or to Evolutions.txt inside the requested directory.
     """
 
     def __init__(self, id_allocator: EvolutionIdAllocator | None = None) -> None:
@@ -66,7 +71,7 @@ class EvolutionRecorder:
 
         :param Path root: Workspace root receiving the marker.
         :param ProbePlan plan: Current active probe plan.
-        :param AddEvolutionRequest request: Destination file and evolution description.
+        :param AddEvolutionRequest request: Destination file or directory and evolution description.
         """
         description = request.description.strip()
         if not description:
@@ -74,9 +79,9 @@ class EvolutionRecorder:
 
         path = self._target_path(root, request)
         # Contract symmetry with the scanner: the scanner only sees files
-        # the allowlist accepts, so the allocator's next-id is only accurate
-        # over those files. Writing a marker into any other file would hide
-        # it from later scans and cause duplicate id allocation.
+        # the allowlist accepts outside skipped directories, so the allocator's
+        # next-id is only accurate over those files. Writing a marker anywhere
+        # else would hide it from later scans and cause duplicate id allocation.
         if not is_source_file(path):
             raise ValueError(
                 f"target path is not a scannable source file: {request.path}; "
@@ -87,8 +92,19 @@ class EvolutionRecorder:
         return AddedEvolution(marker, description, path, line)
 
     def _target_path(self, root: Path, request: AddEvolutionRequest) -> Path:
+        root = root.resolve()
         path = (root / request.path).resolve()
-        path.relative_to(root.resolve())
+        relative_path = path.relative_to(root)
+        target_is_directory = path.is_dir()
+        parts_to_scan = relative_path.parts if target_is_directory else relative_path.parts[:-1]
+        skipped_dir = next((part for part in parts_to_scan if part in SKIPPED_DIRS), None)
+        if skipped_dir is not None:
+            raise ValueError(
+                f"target path is under a directory skipped by probedev list: {request.path} "
+                f"(skipped directory: {skipped_dir})"
+            )
+        if target_is_directory:
+            path = path / "Evolutions.txt"
         return path
 
     def _write_marker(self, path: Path, marker: str, description: str) -> int:

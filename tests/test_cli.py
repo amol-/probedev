@@ -903,6 +903,37 @@ def test_probe_add_creates_missing_scannable_source_file_when_plan_is_empty(tmp_
     assert target.read_text(encoding="utf-8") == f"# {marker}010): Add the first evolution.\n"
 
 
+def test_probe_add_rejects_missing_extensionless_path_instead_of_guessing_directory(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "src"
+
+    exit_code = main(["--root", str(tmp_path), "add", "src", "Add a directory evolution."])
+
+    assert exit_code == 1
+    assert "not a scannable source file" in capsys.readouterr().out
+    assert not target.exists()
+
+
+def test_probe_add_rejects_directory_target_under_scanner_skipped_directory(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    skipped = tmp_path / ".venv"
+    skipped.mkdir()
+
+    exit_code = main(["--root", str(tmp_path), "add", ".venv", "Add a hidden directory evolution."])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "directory skipped by probedev list" in output
+    assert "skipped directory: .venv" in output
+    assert not (skipped / "Evolutions.txt").exists()
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py", "Add a visible evolution."])
+
+    assert exit_code == 0
+    assert "- marker: EVO-010" in capsys.readouterr().out
+
+
 def test_probe_add_refuses_non_source_target_path(tmp_path: Path, capsys) -> None:
     """``add`` must refuse non-source targets so the allocator stays sound.
 
