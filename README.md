@@ -1,6 +1,6 @@
 # probedev
 
-`probedev` is a command line toolkit for projects that use [pdd/README.md](Probe-Driven Development).
+`probedev` is a command line toolkit for projects that use [Probe-Driven Development](pdd/README.md).
 
 It reads and manages ordered `TODO(EVO-###)` evolution markers in a codebase.
 For the PDD workflow, philosophy, and evolution-writing guidance, see [pdd/README.md](pdd/README.md).
