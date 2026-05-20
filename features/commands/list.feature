@@ -76,3 +76,19 @@ Feature: List ordered evolutions
     When the developer runs `probedev list` and then `probedev identify`
     Then list and identify observe the same source marker candidate locations
     And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S009
+  Scenario: Plain text Evolutions.txt markers keep body lines until a blank line
+    Given a workspace with a plain text Evolutions.txt evolution body
+    When the developer runs `probedev list`
+    Then the system prints the Evolutions.txt evolution body
+    And the system does not include text after the blank line
+    And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S010
+  Scenario: Source code marker bodies stop before non-comment code
+    Given a workspace with a source evolution body followed by code
+    When the developer runs `probedev list`
+    Then the system prints the source evolution comment body
+    And the system does not include executable code after the evolution body
+    And the command succeeds.

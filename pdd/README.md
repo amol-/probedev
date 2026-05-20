@@ -1,248 +1,261 @@
 # Probe-Driven Development
 
-Probe-Driven Development is a code-first software development workflow where executable architectural probes replace most upfront specification work.
+Probe-Driven Development is a code-first workflow for turning a software requirement or idea into working architecture and an ordered implementation plan.
 
 The central claim is simple:
 
 > Agents speak code. Developers speak code. Specs were invented to communicate between humans; probes are for communication between humans and agents.
 
-In Probe-Driven Development, the software plan lives in the codebase as ordered evolutions anchored by `TODO(EVO-...)` markers. The README gives product intent. The probe gives architecture. The evolutions give execution order.
+PDD does not prescribe how requirements are created. A requirement may start as BDD scenarios, a README, an issue, a design note, or a conversation. The only requirement is that the idea is clear enough to build a probe from it.
 
-## Foundations
+## The Point
 
-### Code Is The Shared Language
+PDD produces three things:
 
-Natural-language specs are useful for human alignment, but they are vague and easy for agents to satisfy superficially. Code is harder to fake. Executable code shows names, boundaries, entrypoints, dependencies, data flow, and tradeoffs directly.
+1. An executable architectural probe.
+2. A complete path from probe to graduation.
+3. A code-local plan, where each step lives next to the code it will evolve.
 
-Probe-Driven Development uses prose only where prose is strongest:
+The probe explores uncertainty. The plan explains how to make the probe real.
 
-- describing product intent
-- capturing user value
-- clarifying scope
-- challenging assumptions
+## Requirements First
 
-Architecture and implementation planning live in code.
+PDD starts from a requirement or idea, not from a tool.
 
-### The Probe Is The Architecture
+The requirement should describe the behavior or outcome well enough that a developer or agent can ask: "What architecture would satisfy this?"
 
-An architectural probe is a deliberately incomplete but executable implementation of an idea inside the real codebase.
+BDD works especially well here. Feature files and scenarios give discipline to the requirement before the probe exists. The probe can then implement a stubbed architecture that satisfies those scenarios, and later evolutions can replace the stubs with real behavior.
 
-It is not a mock, sketch, detached prototype, or architecture document. It must run through the most realistic entrypoint available and reveal how the software wants to be shaped.
+BDD is useful, but not mandatory. Any clear requirement format can start a probe.
 
-The probe should be small enough to review in minutes. If the probe takes hours to understand, it failed as a probe.
+## Build The Probe
 
-### Evolutions Are The Plan
+An architectural probe is a deliberately incomplete but executable implementation inside the real codebase.
 
-`TODO(EVO-...)` markers are not incidental debt comments, but they are also not the whole evolution. They are anchors for ordered code-local planned changes.
+It is not a detached prototype or an architecture document.
+It should run through the most realistic entrypoint available and reveal how the software wants to be shaped, and
+how the components should interact.
 
-An evolution is closer to an issue in an issue tracker. It has an ID, order, and short title in the `TODO(EVO-...)` marker, and it gets most of its context from nearby code: names, types, comments, tests, integration points, and optional linked BDD feature files.
+In a probe, business behavior may be fake, but **architectural contracts should be real enough** to test the direction:
 
-Each evolution should describe a concrete step from the current probe toward the real implementation. Each marker belongs at the code location where the future work should happen.
+- real entities
+- real interfaces
+- real module boundaries
+- real entrypoints
+- fake methods where implementation and logic is not the question yet
 
-Ideally, moving from probe to production is mostly applying evolutions and removing their `TODO(EVO-...)` markers while preserving the architecture shape that the probe validated.
+The probe is a **working hypothesis**, not a commitment.
+It can be rejected, thrown away, or heavily modified when it shows that the direction is wrong. PDD is iterative, not waterfall.
 
-### The Workflow Never Leaves Code
+The important rule is that the evolutions stay current as the probe changes.
 
-Probe-Driven Development does not require a separate project plan, issue tracker, architecture document, or requirements database.
+## Evolutions Are The Plan
 
-The source of truth is:
+An evolution is one ordered step from the current probe toward graduated software.
 
-- README for intent
-- executable code for architecture
-- ordered evolutions for the plan
-
-External tools may visualize or validate the plan, but they should derive from the codebase rather than replace it.
-
-## Lifecycle
-
-### 1. Intent Seed
-
-Start with a short README description.
-
-The seed should explain what the software is, who it serves, and why it exists. It does not need complete requirements.
-
-### 2. Discussion
-
-Challenge the README until the software is understandable as a whole.
-
-Discussion should focus on product questions:
-
-- who uses it
-- what problem it solves
-- what the first useful workflow is
-- what belongs out of scope
-- what "complete enough" means
-
-Avoid technical design questions unless they block understanding the product.
-
-### 3. Refinement
-
-Create or evolve the architectural probe.
-
-The probe must:
-
-- live in the real codebase
-- execute as real code
-- use realistic entrypoints and integration points
-- expose component boundaries and responsibilities
-- stay reviewable in minutes
-- remain easy to remove if rejected
-
-Refinement also creates, updates, removes, or reorders evolutions.
-
-### 4. Challenge
-
-Challenge the probe plan against the README.
-
-This step asks whether the code and evolutions still express the intended software:
-
-- does the probe cover the core workflows?
-- are important gaps represented by evolutions?
-- are evolutions concrete and ordered?
-- is the plan still small enough to execute step by step?
-- has the code drifted away from the README?
-
-Challenge produces suggested refinements, not implementation by default.
-
-### 5. Applying Evolutions
-
-Apply one ordered evolution at a time.
-
-Each application of an evolution should:
-
-- implement exactly the selected evolution
-- remove or update that evolution
-- add follow-up evolutions only when the work reveals necessary new steps
-- optionally define or update BDD feature files for the selected evolution before implementation
-- run targeted verification
-- avoid unrelated hardening or refactoring
-
-### 6. Graduation
-
-The software is complete for the current agreed scope when no `TODO(EVO-...)` markers remain.
-
-If new features are requested later, the project returns to discussion, refinement, challenge, and applying evolutions for that new scope.
-
-## Rules
-
-### README Rules
-
-- The README describes product intent, not detailed architecture.
-- It should be clear enough to challenge whether the code is building the right thing.
-- It should evolve when the user's understanding of the software changes.
-- It should not become a traditional requirements document.
-
-### Probe Rules
-
-- The probe must execute.
-- The probe must live in the real codebase.
-- The probe must use the realistic entrypoint for the software.
-- The probe should use existing infrastructure when the codebase provides it.
-- The probe should stay concrete unless the idea being probed is a generalization.
-- The probe should surface concerns in code as evolutions anchored by `TODO(EVO-...)`.
-- The probe should stay reviewable in minutes.
-- The probe should be easy to remove.
-
-### Evolution Rules
-
-Use this default syntax:
+Every evolution is anchored by this syntax:
 
 ```text
-TODO(EVO-010): Concrete implementation step.
+TODO(EVO-010): Short title of the planned change
 ```
 
-Rules:
+`TODO(EVO-###)` is the canonical PDD marker because it is easy for tools to parse, easy for humans to search, and recognized by many editors and IDEs as a task.
 
-- IDs must be ordered.
-- IDs should be zero-padded.
-- IDs should usually increment by tens.
-- Each marker should be a short issue title, not the whole issue body.
-- Each evolution must describe one concrete step.
-- Each marker must be placed where the work belongs.
-- Nearby code must provide enough context for an agent and developer to apply the evolution.
-- Prefer placing each evolution in the source file closest to the code that should evolve.
-- Use directory-level `Evolutions.txt` only when no specific code location owns the work.
-- Evolutions must be updated when the plan changes.
-- An evolution may be replaced by more precise evolutions if applying it reveals necessary substeps.
+The marker alone is not enough. A good evolution includes:
 
-Use one ordered `EVO-XXX` sequence for the current agreed scope. If the project has multiple independent architectural scopes, keep them in the same sequence and make the scope clear in the marker title and nearby code.
+- `TODO(EVO-###): Title`
+- `Why`
+- `Done`
+- `Non-Goals`
 
-### Command Rules
+The evolution should be self-contained enough that a developer or agent can apply it by reading the marker, its structured body, and the surrounding code. The goal is to avoid jumping across planning files to discover what code is involved or what the step means.
 
-- `probedev list` reads the ordered plan from code.
-- `probedev add` records one new ordered evolution marker with a unique ID at the end of a requested source file or `<dir>/Evolutions.txt` for an existing directory target. Directory targets are for work that is not related to a specific code location; otherwise keep the marker close to the code that should evolve.
+Keep each evolution close to the code it will evolve. This helps humans stay oriented and helps LLMs keep the relevant context small.
 
-Keep this separation strict. The command line tool manages project-state visibility. Coding agents handle discussion, refinement, challenge, and applying evolutions because those activities require judgment and code changes.
+## Example: Python
 
-## Optional BDD Integration
+```python
+from dataclasses import dataclass
+from typing import Protocol
 
-Probe-Driven Development works without BDD. BDD is optional.
 
-When BDD is useful, it should be introduced while a coding agent applies a selected evolution, not before the architectural probe exists.
+@dataclass(frozen=True)
+class Movie:
+    title: str
+    year: int
 
-The probe discovers where behavior belongs in the software. BDD describes the user-observable behavior that one selected evolution must satisfy.
 
-### Why BDD Comes After The Probe
+class MovieRepository(Protocol):
+    def add(self, movie: Movie) -> None: ...
+    def list(self) -> list[Movie]: ...
 
-Writing feature files before the probe can force behavior language, nouns, workflows, and boundaries too early.
 
-First use a coding agent to create or evolve the executable architecture. Then, when applying a specific evolution, define the BDD feature for that evolution's behavior.
+class InMemoryMovieRepository:
+    def __init__(self) -> None:
+        self._movies: list[Movie] = []
 
-This keeps the responsibilities separate:
+    def add(self, movie: Movie) -> None:
+        self._movies.append(movie)
 
-- README describes product intent
-- probe code discovers architecture
-- evolutions give ordered implementation changes
-- BDD feature files describe user-observable behavior for a selected step
-- implementation makes that selected behavior pass
+    def list(self) -> list[Movie]:
+        # TODO(EVO-010): Replace in-memory movie storage with durable persistence
+        # Why:
+        # - The probe validates the repository boundary, but movies disappear after restart.
+        # - Graduation requires the CLI and web entrypoints to share the same saved library.
+        # Done:
+        # - MovieRepository is backed by durable storage selected by configuration.
+        # - Existing add/list behavior passes through the same repository contract.
+        # - A restart preserves movies added before shutdown.
+        # Non-Goals:
+        # - Do not add editing, deletion, search, or user accounts in this evolution.
+        # - Do not change the public MovieRepository interface unless persistence proves it wrong.
+        return list(self._movies)
+```
 
-### BDD While Applying An Evolution
+The storage behavior is fake enough for a probe, but the entity, interface, and repository boundary are real enough to test the architecture.
 
-When applying an evolution that has user-observable behavior, the coding agent may:
+## Example: Go
 
-- inspect the selected evolution and its surrounding code context
-- create or update the smallest relevant feature file
-- link the evolution and feature file
-- ask the user only when behavior is ambiguous
-- implement the evolution
-- run the feature or the most targeted available verification
-- remove or update the marker when the behavior is implemented
+```go
+package movies
 
-Do not create a broad feature suite for the whole product. Define only the behavior needed for the selected evolution.
+import "context"
 
-If the evolution is purely internal and has no meaningful user-observable behavior, BDD can be skipped.
+type Movie struct {
+	Title string
+	Year  int
+}
 
-### Linking Evolutions And Features
+type Repository interface {
+	Add(ctx context.Context, movie Movie) error
+	List(ctx context.Context) ([]Movie, error)
+}
 
-Link code-local evolutions to BDD feature files explicitly.
+type MemoryRepository struct {
+	movies []Movie
+}
 
-In code:
+func (r *MemoryRepository) Add(ctx context.Context, movie Movie) error {
+	r.movies = append(r.movies, movie)
+	return nil
+}
+
+func (r *MemoryRepository) List(ctx context.Context) ([]Movie, error) {
+	// TODO(EVO-020): Replace memory repository with shared persistent storage
+	// Why:
+	// - The probe proves the Repository contract, but state is process-local.
+	// - Graduation requires multiple commands and server handlers to see the same movie library.
+	// Done:
+	// - Repository has a persistent implementation behind the existing interface.
+	// - Add and List keep the same behavior from callers' perspective.
+	// - Tests prove data survives repository reinitialization.
+	// Non-Goals:
+	// - Do not add filtering, pagination, or migrations in this evolution.
+	// - Do not redesign the handler layer unless the repository contract blocks persistence.
+	result := make([]Movie, len(r.movies))
+	copy(result, r.movies)
+	return result, nil
+}
+```
+
+## When No Code Location Fits
+
+**Evolutions should live in the source file closest to the code they will change**.
+
+Missing files are not a reason to use `Evolutions.txt`. If the planned work has a natural code owner, create the smallest honest placeholder for that owner and put the evolution there. A future package can start as an empty package, a future fixture set can start as a fixture directory, and a future entrypoint can start as a stub.
+
+Use `Evolutions.txt` only when the step has no specific code owner. Good examples include validating the probe with an external stakeholder, choosing between two operational deployment constraints, or recording a project-level decision that affects several parts of the probe equally.
+
+In that case, put the evolution in an `Evolutions.txt` file in the closest relevant directory. If no directory owns the work yet, use `Evolutions.txt` at the project root.
+
+In `Evolutions.txt`, the evolution body continues until a blank line, the next evolution marker, or the end of the file.
+
+The same structure still applies:
 
 ```text
-TODO(EVO-030): Add edit and remove flows to the movie library.
-Feature: features/movie_library/manage_movies.feature
+TODO(EVO-030): Validate repository durability expectations with operations
+Why:
+- The probe assumes local durable storage is acceptable, but operations may require managed storage.
+- This decision affects repository code, deployment configuration, and acceptance criteria equally.
+Done:
+- The agreed storage constraint is recorded in the requirement source.
+- Follow-up evolutions are moved into the specific files that must change.
+Non-Goals:
+- Do not implement storage changes in this evolution.
+- Do not introduce a generic deployment abstraction before the constraint is known.
 ```
 
-In the feature file:
+Move or rewrite the evolution when the probe changes and a better code location appears.
 
-```gherkin
-# Evolution: EVO-030
-Feature: Manage movies
-```
+## The Workflow
 
-Keep the link simple and searchable. The evolution remains the project-plan unit. The feature file is the behavior contract for applying that evolution.
+### Express
 
-### BDD Challenge Checks
+Express the requirement clearly enough to probe.
 
-When BDD is used, challenge work should also check:
+BDD scenarios are a strong option because they describe observable behavior before architecture is chosen.
+A README, issue, or design note can also work.
 
-- each user-observable evolution has a linked feature file
-- linked feature files match README intent
-- feature scenarios are no broader than the selected evolution
-- feature language matches the nouns and workflows discovered by the probe
-- stale feature files are updated or removed when evolutions change
+PDD does not own this step. It only depends on the result being clear enough to guide a probe.
 
-BDD should clarify behavior. It should not become a second project plan that competes with `TODO(EVO-...)`.
+### Probe
+
+Build the smallest executable architecture that can satisfy or illuminate the requirement.
+
+Use real boundaries and fake behavior where implementation detail is not the current uncertainty.
+
+### Challenge
+
+You should review and challenge the probe against the requirement.
+
+Ask:
+
+- Does this architecture satisfy the scenarios or intent?
+- Did the probe expose a better shape?
+- Are the entities, interfaces, and boundaries still credible?
+- Are missing implementation steps captured as evolutions?
+- Are the evolutions ordered and close to the code they change?
+
+Challenge can produce changes to the probe, changes to the evolutions, or a decision to throw the probe away.
+
+This is the moment the **development team and the coding agents come to alignment** over how the software should be built,
+such that there is one shared vision on what the architecture should look like and what is the plan to build the software.
+
+### Evolve
+
+Apply one evolution at a time.
+
+Each evolution should:
+
+- implement exactly the selected step
+- remove its `TODO(EVO-###)` marker
+- keep nearby evolutions accurate
+- add follow-up evolutions only when the work reveals new necessary steps
+- run the most targeted useful verification
+
+### Graduate
+
+The current scope is graduated when no active `TODO(EVO-###)` markers remain for that scope.
+
+Graduation does not mean the product is finished forever. It means the agreed scope represented by the probe has become real software.
+
+New requirements start the cycle again.
+
+## Tooling
+
+PDD does not require a specific tool.
+
+A useful PDD tool should be able to:
+
+- find `TODO(EVO-###)` markers
+- show the ordered plan
+- preserve stable evolution IDs
+- open the code location for a selected evolution
+- keep the plan derived from the codebase
+
+Tools may help manage the workflow, but they should not replace the code-local plan.
+
+The `probedev` tool is an example implementation of a tool to manage the evolutions plan.
 
 ## Glossary
 
@@ -250,64 +263,18 @@ BDD should clarify behavior. It should not become a second project plan that com
 
 A deliberately incomplete but executable implementation that reveals whether an architectural direction fits the real codebase.
 
-### Probe-Driven Development
-
-A software development workflow where the product description lives in README, the architecture is discovered through executable probes, and the implementation plan lives as ordered evolutions in code.
-
-### Intent Seed
-
-The first small README description of the software.
-
-### Discussion
-
-The process of challenging and improving the README-level product description before technical design.
-
-### Refinement
-
-The process of creating or evolving an architectural probe and its ordered evolution plan.
-
-### Challenge
-
-The process of comparing README intent, executable code, and evolution plan to find drift, missing flows, stale evolutions, or weak architecture.
-
-### Applying An Evolution
-
-The process of applying one ordered evolution.
-
-When BDD is used, applying an evolution may first define or update the feature file for the selected evolution's user-observable behavior.
-
-### Graduation
-
-The point where all `TODO(EVO-...)` markers for the current agreed scope have been applied and removed.
-
 ### Evolution
 
-An ordered code-local planned change anchored by `TODO(EVO-...)` syntax.
-
-The marker gives the evolution ID, execution order, and short title. The surrounding code provides most of the detail needed to apply it.
+An ordered, code-local planned change anchored by a `TODO(EVO-###)` marker and described with `Why`, `Done`, and `Non-Goals`.
 
 ### Current Scope
 
-The currently agreed product or capability scope described by the README and represented by the active evolution sequence.
+The requirement or capability currently represented by the executable probe and its active evolution markers.
 
-## Known Risks
+### Challenge
 
-### Evolutions Can Become Stale
+The act of comparing the requirement, probe, and evolutions to find missing behavior, stale markers, unclear architecture, or drift.
 
-Address this by challenging the probe regularly and by keeping evolutions concrete, ordered, and colocated with the code they affect.
+### Graduation
 
-### Code May Miss Product Intent
-
-Address this by keeping the README short but meaningful, and by challenging the code against it.
-
-### Agents May Overbuild
-
-Address this by keeping the CLI limited to plan visibility and marker creation, and by applying one evolution at a time through coding agents.
-
-### One Ordered List May Not Fit Every Project
-
-Address this by using one ordered sequence per coherent scope. Add named sequences only when multiple independent architectural fronts exist.
-
-### Completion Can Be Misleading
-
-No evolutions means complete only for the current agreed scope. New product intent restarts the lifecycle.
+The point where all active `TODO(EVO-###)` markers for the current scope have been resolved and removed.

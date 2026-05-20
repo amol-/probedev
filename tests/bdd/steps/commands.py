@@ -133,6 +133,44 @@ def workspace_with_multiline_evolution_marker(command_context: CommandContext, m
     )
 
 
+@given("a workspace with a plain text Evolutions.txt evolution body")
+def workspace_with_plain_text_evolutions_body(command_context: CommandContext, marker_prefix: str) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                f"{marker_prefix}010): Validate repository durability expectations with operations",
+                "Why:",
+                "- The probe assumes local durable storage is acceptable.",
+                "Done:",
+                "- Follow-up evolutions are moved into specific files.",
+                "",
+                "This note is outside the evolution body.",
+            ]
+        ),
+        "Evolutions.txt",
+    )
+
+
+@given("a workspace with a source evolution body followed by code")
+def workspace_with_source_evolution_body_followed_by_code(
+    command_context: CommandContext,
+    marker_prefix: str,
+) -> None:
+    write_source(
+        command_context.root,
+        "\n".join(
+            [
+                f"# {marker_prefix}010): Replace in-memory storage with persistence.",
+                "# Why:",
+                "# - The probe loses data after restart.",
+                "def build_repository():",
+                "    return MemoryRepository()",
+            ]
+        ),
+    )
+
+
 @given("a workspace with ignored marker-shaped fixture text")
 def workspace_with_ignored_marker_shaped_fixture_text(
     command_context: CommandContext,
@@ -632,6 +670,34 @@ def assert_multiline_continuations_aligned(command_context: CommandContext) -> N
     continuation = next(line for line in output_lines if "consider a structured parser/helper" in line)
     expected_indent = first.index("recent tracked")
     assert continuation.index("consider") == expected_indent
+
+
+@then("the system prints the Evolutions.txt evolution body")
+def assert_plain_text_evolutions_body_printed(command_context: CommandContext) -> None:
+    assert "Evolutions.txt" in command_context.output
+    assert "Validate repository durability expectations with operations" in command_context.output
+    assert "Why:" in command_context.output
+    assert "- The probe assumes local durable storage is acceptable." in command_context.output
+    assert "Done:" in command_context.output
+    assert "- Follow-up evolutions are moved into specific files." in command_context.output
+
+
+@then("the system does not include text after the blank line")
+def assert_text_after_blank_line_omitted(command_context: CommandContext) -> None:
+    assert "This note is outside the evolution body." not in command_context.output
+
+
+@then("the system prints the source evolution comment body")
+def assert_source_evolution_comment_body_printed(command_context: CommandContext) -> None:
+    assert "Replace in-memory storage with persistence." in command_context.output
+    assert "Why:" in command_context.output
+    assert "- The probe loses data after restart." in command_context.output
+
+
+@then("the system does not include executable code after the evolution body")
+def assert_executable_code_after_body_omitted(command_context: CommandContext) -> None:
+    assert "def build_repository" not in command_context.output
+    assert "return MemoryRepository" not in command_context.output
 
 
 @then("the system reports that no probe evolutions were found")

@@ -121,12 +121,13 @@ class ProbePlanParser:
                 continue
             marker_prefix = self._marker_line_prefix(candidate.text)
             docstring_end_line = docstring_end_lines.get(candidate.line)
+            plain_text_plan = file.path.suffix.casefold() == ".txt"
             continuation = self._collect_continuation_lines(
                 file.lines,
                 candidate.line,
                 next_line,
                 marker_prefix,
-                bool(marker_prefix.strip()) or docstring_end_line is not None,
+                bool(marker_prefix.strip()) or docstring_end_line is not None or plain_text_plan,
                 docstring_end_line,
             )
             evolutions.append(

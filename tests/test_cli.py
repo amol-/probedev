@@ -326,6 +326,74 @@ def test_probe_plan_does_not_collect_continuations_for_no_comment_non_docstring_
     ]
 
 
+def test_probe_plan_collects_plain_text_evolutions_txt_body_until_blank_line(
+    tmp_path: Path,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "Evolutions.txt"
+    source.write_text(
+        "\n".join(
+            [
+                f"{marker}010): Validate repository durability expectations.",
+                "Why:",
+                "- The probe assumes local durable storage.",
+                "Done:",
+                "- The agreed constraint is recorded.",
+                "",
+                "This note is not part of the evolution.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title, evolution.continuation_lines) for evolution in plan.evolutions] == [
+        (
+            "EVO-010",
+            "Validate repository durability expectations.",
+            (
+                "Why:",
+                "- The probe assumes local durable storage.",
+                "Done:",
+                "- The agreed constraint is recorded.",
+            ),
+        )
+    ]
+
+
+def test_probe_plan_source_continuations_stop_before_non_comment_code(
+    tmp_path: Path,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                f"# {marker}010): Replace in-memory storage with persistence.",
+                "# Why:",
+                "# - The probe loses data after restart.",
+                "def build_repository():",
+                "    return MemoryRepository()",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = ProbePlanParser().scan(tmp_path)
+
+    assert [(evolution.marker, evolution.title, evolution.continuation_lines) for evolution in plan.evolutions] == [
+        (
+            "EVO-010",
+            "Replace in-memory storage with persistence.",
+            (
+                "Why:",
+                "- The probe loses data after restart.",
+            ),
+        )
+    ]
+
+
 def test_probe_plan_does_not_collect_continuations_for_standalone_triple_quote_assignment(
     tmp_path: Path,
 ) -> None:
