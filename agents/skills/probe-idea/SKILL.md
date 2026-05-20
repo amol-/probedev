@@ -59,7 +59,7 @@ For a new complete software idea, create the miniature real shape of the softwar
 
 Do not reduce the probe to one operation when the idea itself is a small capability set. For example, probing "manage movies" may require minimal add, edit, remove, and view flows because those flows define "manage." Omit robustness and edge cases, not flows that are inherent to the idea.
 
-When the requested idea describes a full tool, application, or workflow, include enough executable skeleton to reveal the main components and include ordered evolution markers for every major missing capability described by the intent source. Do not leave known README/product requirements unrepresented just because they are not implemented in the probe.
+When the requested idea describes a full tool, application, or workflow, include enough executable skeleton to reveal the main components and include ordered evolution markers for every major missing capability described by the intent source. Do not leave known requirements from the current agreed scope unrepresented just because they are not implemented in the probe.
 
 ## Entrypoints And Integration
 
@@ -139,17 +139,25 @@ Do not replace executable code with comments. The probe must still run. Comments
 Surface the complete graduation plan in the code with editor-recognizable ordered TODOs:
 
 ```text
-TODO(EVO-010): Use Redis for cache sharing across concurrent workers.
-               Why: The probe's in-memory cache proves the call flow, but it would lose consistency once multiple workers handle requests.
-               Done: Cache reads/writes use the existing Redis client path, the in-memory cache is gone from production flow, and the focused concurrency smoke test passes.
-               Non-Goals: Do not add a general cache abstraction, broad invalidation policy, or unrelated retry/backoff behavior in this step.
+<comment> TODO(EVO-010): Use Redis for cache sharing across concurrent workers
+<comment> Why:
+<comment> - The probe's in-memory cache proves the call flow, but it would lose consistency once multiple workers handle requests.
+<comment> Done:
+<comment> - Cache reads/writes use the existing Redis client path.
+<comment> - The in-memory cache is gone from production flow.
+<comment> - The focused concurrency smoke test passes.
+<comment> Non-Goals:
+<comment> - Do not add a general cache abstraction.
+<comment> - Do not add broad invalidation policy or unrelated retry/backoff behavior.
 ```
 
-Use `TODO(EVO-010)` style markers for concrete evolution steps from probe toward real implementation. Place each marker at the exact code location where the future work belongs. The marker title must be short and immediately obvious, then the body must include `Why`, `Done`, and `Non-Goals` guidance.
+Use `TODO(EVO-###)` style markers for concrete evolution steps from probe toward real implementation. IDs must be stable, ordered, and zero-padded, such as `TODO(EVO-010)`, `TODO(EVO-020)`, and `TODO(EVO-030)`. Place each marker at the exact code location where the future work belongs. In source files, write the marker and its body using the language's normal comment prefix (`#`, `//`, `--`, etc.). The marker title must be short and immediately obvious, then the body must include `Why`, `Done`, and `Non-Goals` guidance.
 
 Evolution markers are not optional debt notes. They are the code-local implementation plan. For the requested scope, the probe is incomplete unless the ordered markers cover the known path to graduation. Each evolution should contain enough information for an agent or developer to implement it independently using only the marker and the code it relates to. If an implementer would need product context, design intent, acceptance criteria, or scope boundaries from outside the marker and the code it touches, the evolution is not well written yet.
 
-Before finishing a probe, compare the intent source such as README, issue, or user request against the code and verify that every described product capability is either:
+Evolutions must live in code by default. Missing files are not a reason to use `Evolutions.txt`: create the smallest honest placeholder for the future code owner and put the marker there. Use `Evolutions.txt` only as an exceptional escape hatch when no specific code location can own the step, such as validating the probe against a real running environment, confirming an external operational constraint, or recording a project-level decision that affects several parts of the probe equally. Put `Evolutions.txt` in the closest relevant directory, using the project root only when the step is truly project-wide. In `.txt` files, the evolution body continues until a blank line, the next evolution marker, or the end of the file.
+
+Before finishing a probe, compare the intent source, such as the prompt, requirement file, issue, BDD scenarios, or user request, against the code and verify that every described product capability is either:
 
 - minimally represented by executable probe behavior, or
 - represented by a specific ordered `TODO(EVO-...)` marker located where the future work belongs.
@@ -185,7 +193,7 @@ Before completing the probe, perform a short self-review:
 
 - Does the executable code expose the intended entrypoint, main components, and control flow?
 - Do the comments make each new boundary's intended responsibility understandable without a separate design doc?
-- Does the ordered evolution list cover all README/user-request capabilities through graduation?
+- Does the ordered evolution list cover all current-scope capabilities through graduation?
 - Is each evolution placed where the implementation belongs?
 - Does every item from the intent ledger map to executable behavior, an intent comment, or a `TODO(EVO-...)` marker?
 - Is each evolution small enough to be applied independently?
