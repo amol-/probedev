@@ -11,6 +11,8 @@ Feature: List ordered evolutions
     - List highlights the next unapplied evolution in each sequence.
     - List treats immediately following comment lines as part of the same evolution description.
     - List aligns continued evolution description lines with the description column.
+    - List can print only evolution marker lines when short output is requested.
+    - List can highlight file paths, evolution ids, and titles when color output is requested.
     - List reports duplicate marker ids.
     - List reports malformed marker candidates.
     - List warns about scannable files that could not be read.
@@ -23,7 +25,7 @@ Feature: List ordered evolutions
     When the developer runs `probedev list`
     Then the system prints the pending evolution files
     And the first marker in the sequence is marked as next
-    And each marker includes its id, line number, and description.
+    And each marker includes its id, source location, and description.
 
   @id:F-COMMANDS-LIST-S002
   Scenario: Malformed marker candidates are reported
@@ -58,7 +60,7 @@ Feature: List ordered evolutions
   Scenario: Multiline evolution markers keep aligned description text
     Given a workspace with a multiline evolution marker
     When the developer runs `probedev list`
-    Then the system prints the marker id and marker line number once
+    Then the system prints the marker id and source location once
     And the system prints all continuation lines as part of the same evolution
     And the continuation lines are aligned with the evolution description column
     And the command succeeds.
@@ -91,4 +93,20 @@ Feature: List ordered evolutions
     When the developer runs `probedev list`
     Then the system prints the source evolution comment body
     And the system does not include executable code after the evolution body
+    And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S011
+  Scenario: Short list output omits evolution body lines
+    Given a workspace with a multiline evolution marker
+    When the developer runs `probedev list --short`
+    Then the system prints the marker id once
+    And the system prints only the first line of the evolution
+    And the command succeeds.
+
+  @id:F-COMMANDS-LIST-S012
+  Scenario: Color list output highlights scan targets and evolution headings
+    Given a workspace with a multiline evolution marker
+    When the developer runs `probedev list --color`
+    Then the system highlights the evolution file, id, and title
+    And the system leaves the source location unhighlighted
     And the command succeeds.

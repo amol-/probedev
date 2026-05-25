@@ -63,8 +63,10 @@ def test_probe_list_discovers_non_python_source_markers(tmp_path: Path, capsys) 
 
     exit_code = main(["--root", str(tmp_path), "list"])
 
+    output = capsys.readouterr().out
     assert exit_code == 0
-    assert "  next EVO-010 line 1 Add the Go step." in capsys.readouterr().out
+    assert "  next EVO-010 Add the Go step." in output
+    assert "               ./main.go:1" in output
 
 
 def test_scan_candidates_discovers_two_markers_on_one_source_line(tmp_path: Path) -> None:
@@ -98,8 +100,10 @@ def test_probe_list_prints_two_markers_on_one_source_line(tmp_path: Path, capsys
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "tool.py",
-        "  next EVO-010 line 1 Add the first step.",
-        "       EVO-020 line 1 Add the second step.",
+        "  next EVO-010 Add the first step.",
+        "               ./tool.py:1",
+        "       EVO-020 Add the second step.",
+        "               ./tool.py:1",
     ]
 
 
@@ -134,8 +138,10 @@ def test_probe_list_marks_only_first_identical_same_line_duplicate_as_next(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "tool.py",
-        "  next EVO-010 line 1 Same.",
-        "       EVO-010 line 1 Same.",
+        "  next EVO-010 Same.",
+        "               ./tool.py:1",
+        "       EVO-010 Same.",
+        "               ./tool.py:1",
         "  warn DUPLICATE EVO-010",
     ]
 
@@ -175,10 +181,12 @@ def test_probe_list_groups_duplicate_and_malformed_warnings_by_file(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "first.py",
-        "  next EVO-010 line 1 Shared marker in first file.",
+        "  next EVO-010 Shared marker in first file.",
+        "               ./first.py:1",
         "  warn DUPLICATE EVO-010",
         "second.py",
-        "       EVO-010 line 1 Shared marker in second file.",
+        "       EVO-010 Shared marker in second file.",
+        "               ./second.py:1",
         "  warn DUPLICATE EVO-010",
         f"  warn MALFORMED line 2 # {marker}10): Missing zero padding in second file.",
     ]
@@ -203,8 +211,10 @@ def test_probe_list_discovers_markers_inside_docstrings(tmp_path: Path, capsys) 
 
     exit_code = main(["--root", str(tmp_path), "list"])
 
+    output = capsys.readouterr().out
     assert exit_code == 0
-    assert "next EVO-010 line 4 Honour the env override once the parser stabilizes." in capsys.readouterr().out
+    assert "next EVO-010 Honour the env override once the parser stabilizes." in output
+    assert "               ./tool.py:4" in output
 
 
 def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
@@ -229,10 +239,13 @@ def test_probe_list_prints_ordered_evolutions(tmp_path: Path, capsys) -> None:
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "src/service.py",
-        "       EVO-030 line 1 Add the third step.",
+        "       EVO-030 Add the third step.",
+        "               ./src/service.py:1",
         "tool.py",
-        "  next EVO-010 line 2 Add the first step.",
-        "       EVO-020 line 1 Add the second step.",
+        "  next EVO-010 Add the first step.",
+        "               ./tool.py:2",
+        "       EVO-020 Add the second step.",
+        "               ./tool.py:1",
     ]
 
 
@@ -258,7 +271,8 @@ def test_probe_list_grouped_output_excludes_ignored_directories_and_markdown(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "src/tool.py",
-        "  next EVO-020 line 1 Keep the real source marker.",
+        "  next EVO-020 Keep the real source marker.",
+        "               ./src/tool.py:1",
     ]
 
 
@@ -285,9 +299,65 @@ def test_probe_list_prints_multiline_evolution_description_with_aligned_continua
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "tool.py",
-        "  next EVO-010 line 1 recent tracked item payload validation is repetitive;",
-        "                      consider a structured parser/helper that preserves these precise",
-        "                      error messages while reducing the long sequence of type checks.",
+        "  next EVO-010 recent tracked item payload validation is repetitive;",
+        "               ./tool.py:1",
+        "               consider a structured parser/helper that preserves these precise",
+        "               error messages while reducing the long sequence of type checks.",
+    ]
+
+
+def test_probe_list_short_prints_only_first_evolution_line(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                f"# {marker}010): recent tracked item payload validation is repetitive;",
+                "# consider a structured parser/helper that preserves these precise",
+                "# error messages while reducing the long sequence of type checks.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list", "--short"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "tool.py",
+        "  next EVO-010 recent tracked item payload validation is repetitive;",
+    ]
+
+
+def test_probe_list_color_highlights_file_marker_and_title(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(
+        "\n".join(
+            [
+                f"# {marker}010): recent tracked item payload validation is repetitive;",
+                "# Why: It hides the intended structure.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["--root", str(tmp_path), "list", "--color"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Pending evolutions",
+        "\033[1;36mtool.py\033[0m",
+        "  next \033[1;33mEVO-010\033[0m \033[1;4;37mrecent tracked item payload validation is repetitive;\033[0m",
+        "               ./tool.py:1",
+        "               Why: It hides the intended structure.",
     ]
 
 
@@ -502,7 +572,8 @@ def test_probe_list_does_not_swallow_ocaml_code_after_one_line_marker(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "tool.ml",
-        "  next EVO-010 line 1 Add the OCaml step.",
+        "  next EVO-010 Add the OCaml step.",
+        "               ./tool.ml:1",
     ]
 
 
@@ -528,7 +599,8 @@ def test_probe_list_does_not_swallow_clojure_code_after_line_comment_marker(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "tool.clj",
-        "  next EVO-010 line 1 Add the Clojure step.",
+        "  next EVO-010 Add the Clojure step.",
+        "               ./tool.clj:1",
     ]
 
 
@@ -581,7 +653,8 @@ def test_probe_list_warns_about_files_that_cannot_be_read(
 
     assert exit_code == 0
     output = capsys.readouterr().out
-    assert "next EVO-010 line 1 Keep scanning readable files." in output
+    assert "next EVO-010 Keep scanning readable files." in output
+    assert "               ./readable.py:1" in output
     assert "warn UNREADABLE unreadable.py skipped during plan scan" in output
 
 
@@ -811,7 +884,8 @@ def test_probe_add_records_common_source_filename_casing_and_variants(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         target_name,
-        "  next EVO-010 line 1 Add a variant source marker.",
+        "  next EVO-010 Add a variant source marker.",
+        f"               ./{target_name}:1",
     ]
 
 
@@ -857,7 +931,8 @@ def test_probe_add_suffix_style_marker_lists_requested_description(
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         target_name,
-        "  next EVO-010 line 1 Add a suffix-delimited evolution.",
+        "  next EVO-010 Add a suffix-delimited evolution.",
+        f"               ./{target_name}:1",
     ]
 
 
@@ -1467,7 +1542,8 @@ def test_probe_list_excludes_prefixed_doc_config_variants(tmp_path: Path, capsys
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "Dockerfile.prod",
-        "  next EVO-010 line 1 Real Docker variant.",
+        "  next EVO-010 Real Docker variant.",
+        "               ./Dockerfile.prod:1",
     ]
 
 
@@ -1482,7 +1558,8 @@ def test_probe_list_includes_recognized_full_filename_before_suffix_exclusion(tm
     assert capsys.readouterr().out.splitlines() == [
         "Pending evolutions",
         "Evolutions.txt",
-        "  next EVO-010 line 1 Keep the text-file plan visible.",
+        "  next EVO-010 Keep the text-file plan visible.",
+        "               ./Evolutions.txt:1",
     ]
 
 

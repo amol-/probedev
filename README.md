@@ -12,15 +12,28 @@ For the PDD workflow, philosophy, and evolution-writing guidance, see [pdd/READM
 List the ordered evolution plan found in the current codebase.
 
 The command scans source files for active `TODO(EVO-###)` markers, groups them by file, and reports malformed or duplicate marker candidates that need attention.
+Use `--short` to show only each evolution marker line and omit the structured body.
+Use `--color` to highlight file paths, evolution ids, and titles with ANSI colors.
 
 ```bash
 % probedev list
 Pending evolutions
 src/probedev/evolutions.py
-  next EVO-010 line 52 Extract id allocation into a component that rejects duplicate default-sequence markers before choosing the next id.
-       EVO-020 line 69 Confirm whether add should create missing files or require the target file to already exist.
+  next EVO-010 Extract id allocation into a component that rejects duplicate default-sequence markers before choosing the next id.
+               ./src/probedev/evolutions.py:52
+       EVO-020 Confirm whether add should create missing files or require the target file to already exist.
+               ./src/probedev/evolutions.py:69
 src/probedev/show.py
-       EVO-110 line 60 Surface editor launch failures as a failed show command with the attempted command line.
+       EVO-110 Surface editor launch failures as a failed show command with the attempted command line.
+               ./src/probedev/show.py:60
+```
+
+```bash
+% probedev list --short
+Pending evolutions
+src/probedev/evolutions.py
+  next EVO-010 Extract id allocation into a component that rejects duplicate default-sequence markers before choosing the next id.
+       EVO-020 Confirm whether add should create missing files or require the target file to already exist.
 ```
 
 ### `probedev add`

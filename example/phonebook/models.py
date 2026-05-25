@@ -36,7 +36,7 @@ class PhoneBook:
     def list(self) -> List[Person]:
         """List all contacts.
         
-        TODO(EVO-020): Return contacts for display.
+        TODO(EVO-020): Return list of contacts for display.
         Why: list command needs access to all contacts.
         Done: Returns a list of Person objects loaded from Storage.
         Non-Goals: Do not implment grouping or sorting.
@@ -47,7 +47,7 @@ class PhoneBook:
         """
         Add a new contact.
         
-        TODO(EVO-030): Implement with duplicate checking.
+        TODO(EVO-030): Implement add with duplicate checking.
         Why: Phone numbers must be unique.
         Done: Checks if number exists in self._people, creates Person,
         adds to list, calls save().
@@ -59,7 +59,7 @@ class PhoneBook:
         """
         Delete a contact by phone number.
         
-        TODO(EVO-040): Implement with idempotent behavior.
+        TODO(EVO-040): Implement deletion with idempotent behavior.
         Why: Delete should be safe to call multiple times.
         Done: Finds Person by number, removes from list, calls save().
         Returns True if found and deleted, False otherwise.

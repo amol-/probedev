@@ -54,7 +54,17 @@ def build_parser() -> argparse.ArgumentParser:
         command.set_defaults(handler=handler)
         return command
 
-    add_command("list", "list ordered TODO(EVO-...) evolutions", run_list)
+    list_command = add_command("list", "list ordered TODO(EVO-...) evolutions", run_list)
+    list_command.add_argument(
+        "--short",
+        action="store_true",
+        help="show only the marker line for each evolution",
+    )
+    list_command.add_argument(
+        "--color",
+        action="store_true",
+        help="highlight file paths, evolution ids, and titles",
+    )
     add_command("identify", "assign unique EVO ids to pending evolutions", run_identify)
     show = add_command("show", "open one evolution marker in an editor", run_show)
     show.add_argument("marker", help="evolution id to open, such as EVO-010")
@@ -167,7 +177,7 @@ def run_identify(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -
     return EXIT_SUCCESS
 
 
-def run_list(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
+def run_list(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
     """Print the ordered probe evolution plan.
 
     :param argparse.Namespace _args: Parsed command arguments.
@@ -179,6 +189,6 @@ def run_list(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -> in
         out.write("No TODO(EVO-...) evolutions found.\n")
         return EXIT_FAILURE
 
-    for line in EvolutionListPresenter().format(workspace.root, plan):
+    for line in EvolutionListPresenter().format(workspace.root, plan, short=args.short, color=args.color):
         out.write(f"{line}\n")
     return EXIT_SUCCESS

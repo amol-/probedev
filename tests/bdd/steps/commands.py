@@ -345,6 +345,16 @@ def run_list(command_context: CommandContext, capsys: pytest.CaptureFixture[str]
     run_probe(command_context, capsys, ["list"])
 
 
+@when("the developer runs `probedev list --short`")
+def run_short_list(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["list", "--short"])
+
+
+@when("the developer runs `probedev list --color`")
+def run_color_list(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(command_context, capsys, ["list", "--color"])
+
+
 @when("the developer runs `probedev list` and then `probedev identify`")
 def run_list_then_identify(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["list"])
@@ -622,11 +632,14 @@ def assert_first_marker_next(command_context: CommandContext) -> None:
     assert "next EVO-010" in command_context.output
 
 
-@then("each marker includes its id, line number, and description.")
-def assert_marker_id_line_and_description(command_context: CommandContext) -> None:
-    assert "EVO-010 line 2 Add the first step." in command_context.output
-    assert "EVO-020 line 1 Add the second step." in command_context.output
-    assert "EVO-030 line 1 Add the third step." in command_context.output
+@then("each marker includes its id, source location, and description.")
+def assert_marker_id_location_and_description(command_context: CommandContext) -> None:
+    assert "EVO-010 Add the first step." in command_context.output
+    assert "./tool.py:2" in command_context.output
+    assert "EVO-020 Add the second step." in command_context.output
+    assert "./tool.py:1" in command_context.output
+    assert "EVO-030 Add the third step." in command_context.output
+    assert "./src/service.py:1" in command_context.output
 
 
 @then("the system prints a malformed marker warning")
@@ -643,7 +656,8 @@ def assert_duplicate_warning(command_context: CommandContext) -> None:
 
 @then("the system prints the readable evolution marker")
 def assert_readable_marker_listed(command_context: CommandContext) -> None:
-    assert "next EVO-010 line 1 Existing visible step." in command_context.output
+    assert "next EVO-010 Existing visible step." in command_context.output
+    assert "./tool.py:1" in command_context.output
 
 
 @then("the system prints an unreadable file warning")
@@ -651,9 +665,16 @@ def assert_unreadable_warning(command_context: CommandContext) -> None:
     assert "warn UNREADABLE unreadable.py skipped during plan scan" in command_context.output
 
 
-@then("the system prints the marker id and marker line number once")
-def assert_multiline_marker_columns_once(command_context: CommandContext) -> None:
-    assert command_context.output.count("EVO-010 line 1") == 1
+@then("the system prints the marker id and source location once")
+def assert_multiline_marker_and_location_once(command_context: CommandContext) -> None:
+    assert command_context.output.count("EVO-010") == 1
+    assert command_context.output.count("./tool.py:1") == 1
+
+
+@then("the system prints the marker id once")
+def assert_marker_id_once(command_context: CommandContext) -> None:
+    assert command_context.output.count("EVO-010") == 1
+    assert "EVO-010 line " not in command_context.output
 
 
 @then("the system prints all continuation lines as part of the same evolution")
@@ -666,10 +687,32 @@ def assert_multiline_continuations_printed(command_context: CommandContext) -> N
 @then("the continuation lines are aligned with the evolution description column")
 def assert_multiline_continuations_aligned(command_context: CommandContext) -> None:
     output_lines = command_context.output.splitlines()
-    first = next(line for line in output_lines if "EVO-010 line 1" in line)
+    first = next(line for line in output_lines if "EVO-010" in line)
     continuation = next(line for line in output_lines if "consider a structured parser/helper" in line)
     expected_indent = first.index("recent tracked")
     assert continuation.index("consider") == expected_indent
+
+
+@then("the system prints only the first line of the evolution")
+def assert_short_list_omits_evolution_body(command_context: CommandContext) -> None:
+    assert "recent tracked item payload validation is repetitive;" in command_context.output
+    assert "consider a structured parser/helper" not in command_context.output
+    assert "error messages while reducing the long sequence of type checks." not in command_context.output
+
+
+@then("the system highlights the evolution file, id, and title")
+def assert_color_list_highlights_heading_fields(command_context: CommandContext) -> None:
+    assert "\033[1;36mtool.py\033[0m" in command_context.output
+    assert "\033[1;33mEVO-010\033[0m" in command_context.output
+    assert "\033[1;4;37mrecent tracked item payload validation is repetitive;\033[0m" in command_context.output
+
+
+@then("the system leaves the source location unhighlighted")
+def assert_color_list_leaves_location_plain(command_context: CommandContext) -> None:
+    assert "               ./tool.py:1" in command_context.output
+    assert "\033[1;36m./tool.py:1\033[0m" not in command_context.output
+    assert "\033[1;33m./tool.py:1\033[0m" not in command_context.output
+    assert "\033[1;4;37m./tool.py:1\033[0m" not in command_context.output
 
 
 @then("the system prints the Evolutions.txt evolution body")
@@ -712,7 +755,8 @@ def assert_add_reports_incomplete_plan(command_context: CommandContext) -> None:
 
 @then("the system prints only the non-ignored evolution marker")
 def assert_only_non_ignored_marker_printed(command_context: CommandContext) -> None:
-    assert "EVO-010 line 1 Keep the real marker." in command_context.output
+    assert "EVO-010 Keep the real marker." in command_context.output
+    assert "./tool.py:1" in command_context.output
     assert "EVO-020" not in command_context.output
     assert "EVO-030" not in command_context.output
 
@@ -723,18 +767,19 @@ def assert_list_and_identify_candidate_locations_agree(command_context: CommandC
         locations: set[tuple[str, int]] = set()
         current_path: str | None = None
         for line in output.splitlines():
-            if line.startswith("warn MALFORMED "):
+            stripped = line.strip()
+            if stripped.startswith("warn MALFORMED "):
                 if include_malformed:
-                    path_line = line.split()[2]
-                    path, line_number = path_line.rsplit(":", 1)
-                    locations.add((path, int(line_number)))
+                    line_number = stripped.split()[3]
+                    assert current_path is not None
+                    locations.add((current_path, int(line_number)))
                 continue
             if line and not line.startswith(" ") and not line.startswith("warn ") and line != "Pending evolutions":
                 current_path = line
                 continue
-            if current_path and " line " in line:
-                line_number = line.split(" line ", 1)[1].split()[0]
-                locations.add((current_path, int(line_number)))
+            if stripped.startswith("./"):
+                path, line_number = stripped.removeprefix("./").rsplit(":", 1)
+                locations.add((path, int(line_number)))
         return locations
 
     def identify_locations(output: str) -> set[tuple[str, int]]:

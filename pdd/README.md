@@ -58,12 +58,16 @@ Together, evolutions form the implementation plan:
 ```text
 Pending evolutions
 src/movies/repository.py
-  next EVO-010: Replace in-memory movie storage with durable persistence.
-       EVO-020: Share the repository between CLI and web entrypoints.
+  next EVO-010 Replace in-memory movie storage with durable persistence.
+               ./src/movies/repository.py:28
+       EVO-020 Share the repository between CLI and web entrypoints.
+               ./src/movies/repository.py:46
 src/movies/ui.py
-       EVO-030: Add edit and remove flows to the movie library UI.
+       EVO-030 Add edit and remove flows to the movie library UI.
+               ./src/movies/ui.py:81
 tests/movie_library.feature
-       EVO-040: Cover restart persistence in the acceptance scenario.
+       EVO-040 Cover restart persistence in the acceptance scenario.
+               ./tests/movie_library.feature:12
 ```
 
 Every evolution is anchored by this syntax:
