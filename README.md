@@ -2,7 +2,9 @@
 
 `probedev` is a command line toolkit for projects that use [Probe-Driven Development](pdd/README.md).
 
-It reads and manages ordered `TODO(EVO-###)` evolution markers in a codebase.
+If you want to learn more about Probe-Driven Development you can read my [Stop Planning, Start Probing and Evolvin](https://amolnotes.substack.com/p/stop-planning-start-probing-and-evolving) post.
+
+probedev reads and manages ordered `TODO(EVO-###)` evolution markers in a codebase.
 For the PDD workflow, philosophy, and evolution-writing guidance, see [pdd/README.md](pdd/README.md).
 
 ## Commands
