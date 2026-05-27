@@ -7,6 +7,8 @@ If you want to learn more about Probe-Driven Development you can read my [Stop P
 probedev reads and manages ordered `TODO(EVO-###)` evolution markers in a codebase.
 For the PDD workflow, philosophy, and evolution-writing guidance, see [pdd/README.md](pdd/README.md).
 
+If you are looking for an actual example, the included [Phonebook example](example/phonebook) could be what you are looking for.
+
 ## Commands
 
 ### `probedev list`
