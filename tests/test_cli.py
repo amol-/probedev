@@ -730,7 +730,14 @@ def test_probe_add_refuses_to_allocate_when_directory_scan_is_incomplete(
             onerror(PermissionError(13, "permission denied", str(blocked)))
         yield from original_walk(path, *args, **kwargs)
 
+    def fake_scandir(path: Path) -> Any:
+        if path == blocked:
+            raise PermissionError(13, "permission denied", str(blocked))
+        return original_scandir(path)
+
+    original_scandir = os.scandir
     monkeypatch.setattr(os, "walk", fake_walk)
+    monkeypatch.setattr(os, "scandir", fake_scandir)
 
     exit_code = main(["--root", str(tmp_path), "add", "readable.py", "Must not allocate hidden id."])
 
