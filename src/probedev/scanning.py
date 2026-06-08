@@ -186,7 +186,7 @@ def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
             continue
 
         # Quick pre-check: only run regex if line might contain a marker
-        if "TODO(EVO-" in line:
+        if "TODO(EVO" in line:
             for match in CANDIDATE_RE.finditer(line):
                 yield MarkerCandidate(
                     path=path,
