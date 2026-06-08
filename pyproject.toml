@@ -12,6 +12,7 @@ requires-python = ">=3.9"
 test = [
     "pytest",
     "pytest-bdd",
+    "pytest-benchmark",
 ]
 
 [project.scripts]

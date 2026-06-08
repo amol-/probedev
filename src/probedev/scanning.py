@@ -185,14 +185,16 @@ def _candidates_in_lines(path: Path, lines: tuple[str, ...]):
         if ignore_current:
             continue
 
-        for match in CANDIDATE_RE.finditer(line):
-            yield MarkerCandidate(
-                path=path,
-                line=line_number,
-                text=line,
-                token=match.group("token"),
-                description=_candidate_description(path, match.group("description")),
-            )
+        # Quick pre-check: only run regex if line might contain a marker
+        if "TODO(EVO-" in line:
+            for match in CANDIDATE_RE.finditer(line):
+                yield MarkerCandidate(
+                    path=path,
+                    line=line_number,
+                    text=line,
+                    token=match.group("token"),
+                    description=_candidate_description(path, match.group("description")),
+                )
 
 
 def _candidate_description(path: Path, description: str) -> str:
@@ -214,15 +216,22 @@ def _iter_scannable_files(root: Path, unreadable_paths: list[Path]):
         if error.filename:
             unreadable_paths.append(Path(error.filename))
 
-    for directory, dir_names, file_names in os.walk(root, onerror=record_unreadable):
-        dir_names[:] = [name for name in dir_names if name not in SKIPPED_DIRS]
-        directory_path = Path(directory)
-        for file_name in file_names:
-            path = directory_path / file_name
-            if not is_source_file(path):
-                continue
-            try:
-                if path.is_file():
-                    yield path
-            except OSError:
-                unreadable_paths.append(path)
+    # Use os.scandir() for better performance
+    try:
+        with os.scandir(root) as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=False):
+                    if entry.name in SKIPPED_DIRS:
+                        continue
+                    # Recursively scan subdirectory
+                    yield from _iter_scannable_files(entry.path, unreadable_paths)
+                elif entry.is_file(follow_symlinks=False):
+                    path = Path(entry.path)
+                    if not is_source_file(path):
+                        continue
+                    try:
+                        yield path
+                    except OSError:
+                        unreadable_paths.append(path)
+    except OSError as error:
+        record_unreadable(error)
