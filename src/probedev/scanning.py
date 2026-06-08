@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -212,6 +211,8 @@ def _ignore_pragmas(line: str) -> set[str]:
 
 
 def _iter_scannable_files(root: Path, unreadable_paths: list[Path]):
+    import os
+    
     def record_unreadable(error: OSError) -> None:
         if error.filename:
             unreadable_paths.append(Path(error.filename))
