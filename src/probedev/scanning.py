@@ -220,16 +220,22 @@ def _iter_scannable_files(root: Path, unreadable_paths: list[Path]):
     try:
         with os.scandir(root) as it:
             for entry in it:
-                if entry.is_dir(follow_symlinks=False):
+                try:
+                    is_dir = entry.is_dir(follow_symlinks=True)
+                except OSError:
+                    is_dir = False
+                
+                if is_dir:
                     if entry.name in SKIPPED_DIRS:
                         continue
                     # Recursively scan subdirectory
                     yield from _iter_scannable_files(entry.path, unreadable_paths)
-                elif entry.is_file(follow_symlinks=False):
-                    path = Path(entry.path)
-                    if not is_source_file(path):
-                        continue
+                else:
+                    # Treat as file (including symlinks to files)
                     try:
+                        path = Path(entry.path)
+                        if not is_source_file(path):
+                            continue
                         yield path
                     except OSError:
                         unreadable_paths.append(path)
