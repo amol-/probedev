@@ -731,7 +731,7 @@ def test_probe_add_refuses_to_allocate_when_directory_scan_is_incomplete(
         yield from original_walk(path, *args, **kwargs)
 
     def fake_scandir(path: Path) -> Any:
-        if path == blocked:
+        if str(path) == str(blocked):
             raise PermissionError(13, "permission denied", str(blocked))
         return original_scandir(path)
 
