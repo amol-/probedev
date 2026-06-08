@@ -232,8 +232,10 @@ def _iter_scannable_files(root: Path, unreadable_paths: list[Path]):
                     yield from _iter_scannable_files(entry.path, unreadable_paths)
                 else:
                     # Treat as file (including symlinks to files)
+                    path = Path(entry.path)
                     try:
-                        path = Path(entry.path)
+                        if not path.is_file():
+                            continue
                         if not is_source_file(path):
                             continue
                         yield path
