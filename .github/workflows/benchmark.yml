@@ -44,7 +44,7 @@ jobs:
           retention-days: 30
 
       - name: Install perfall CLI
-        run: python -m pip install perfall
+        run: python -m pip install pytest-benchmark[perfall]
 
       - name: Submit benchmarks to perfall.it
         run: |
