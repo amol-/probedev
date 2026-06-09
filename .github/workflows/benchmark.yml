@@ -42,3 +42,10 @@ jobs:
           name: benchmark-results
           path: benchmark.json
           retention-days: 30
+
+      - name: Submit benchmarks to perfall.it
+        run: |
+          perfall ingest pytest-benchmark \
+            --file benchmark.json \
+            --api-key $PERFALL_API_KEY \
+            --perfall-url "https://perfall.it"
