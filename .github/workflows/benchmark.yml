@@ -43,12 +43,12 @@ jobs:
           path: benchmark.json
           retention-days: 30
 
-      - name: Install perfall dependencies
-        run: python -m pip install pytest-benchmark[perfall]
+      - name: Install perfall CLI
+        run: python -m pip install perfall-cli
 
       - name: Submit benchmarks to perfall.it
         run: |
-          python -m pytest_benchmark.perfall ingest \
+          perfall ingest pytest-benchmark \
             --file benchmark.json \
             --api-key $PERFALL_API_KEY \
             --perfall-url "https://perfall.it"
