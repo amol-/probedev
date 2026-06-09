@@ -47,6 +47,7 @@ jobs:
         run: python -m pip install perfall-cli
 
       - name: Submit benchmarks to perfall.it
+        if: env.PERFALL_API_KEY != ''
         run: |
           perfall ingest pytest-benchmark \
             --file benchmark.json \
