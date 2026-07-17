@@ -12,6 +12,7 @@ from probedev.identification import EvolutionIdentifier
 from probedev.listing import EvolutionListPresenter
 from probedev.plan import ProbePlan, ProbePlanParser
 from probedev.show import EvolutionShower
+from probedev.done import EvolutionDoner
 
 
 EXIT_SUCCESS = 0
@@ -75,6 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="source file or existing directory where the evolution marker belongs; directories use Evolutions.txt",
     )
     add.add_argument("description", nargs="+", help="evolution description to record")
+    done = add_command("done", "mark an evolution as done by changing TODO(EVO-XXX) to DONE(EVO-XXX)", run_done)
+    done.add_argument("marker", help="evolution id to mark as done, such as EVO-010")
 
     return parser
 
@@ -174,6 +177,33 @@ def run_identify(_args: argparse.Namespace, workspace: Workspace, out: TextIO) -
             out.write(f"- marker: {evolution.marker}\n")
             out.write(f"  description: {evolution.description}\n")
             out.write(f"  location: {evolution.path.relative_to(workspace.root)}:{evolution.line}\n")
+    return EXIT_SUCCESS
+
+
+def run_done(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
+    """Mark an evolution as done by changing TODO(EVO-XXX) to DONE(EVO-XXX).
+
+    :param argparse.Namespace args: Parsed command arguments.
+    :param Workspace workspace: Project workspace to inspect.
+    :param TextIO out: Output stream for command text.
+    """
+    plan = workspace.read_probe_plan()
+    if plan.unreadable_paths:
+        out.write("Could not mark evolution as done: plan scan skipped unreadable files; fix file access and try again.\n")
+        return EXIT_FAILURE
+
+    try:
+        result = EvolutionDoner().done(workspace.root, plan, args.marker)
+    except ValueError as exc:
+        out.write(f"Could not mark evolution as done: {exc}\n")
+        return EXIT_FAILURE
+    except LookupError as exc:
+        out.write(f"Could not mark evolution as done: {exc}\n")
+        return EXIT_FAILURE
+
+    out.write("Marked evolution as done\n")
+    out.write(f"- marker: {result.marker}\n")
+    out.write(f"- location: {result.path.relative_to(workspace.root)}:{result.line}\n")
     return EXIT_SUCCESS
 
 

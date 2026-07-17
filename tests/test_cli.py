@@ -1622,3 +1622,98 @@ def test_probe_plan_ignores_marker_candidates_with_pragmas(tmp_path: Path) -> No
     assert plan.malformed == []
     assert result.identified == []
     assert f"# {marker}40): Ignore the malformed block marker." in source.read_text(encoding="utf-8")
+
+
+def test_probe_done_marks_python_evolution_as_done(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(f"# {marker}010): Add the first step.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-010"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Marked evolution as done",
+        "- marker: EVO-010",
+        "- location: tool.py:1",
+    ]
+    assert source.read_text(encoding="utf-8") == "# DONE(EVO-010): Add the first step.\n"
+
+
+def test_probe_done_marks_go_evolution_as_done(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "main.go"
+    source.write_text(f"// {marker}010): Add the Go step.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-010"])
+
+    assert exit_code == 0
+    assert "Marked evolution as done" in capsys.readouterr().out
+    assert source.read_text(encoding="utf-8") == "// DONE(EVO-010): Add the Go step.\n"
+
+
+def test_probe_done_marks_ocaml_evolution_as_done(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.ml"
+    source.write_text(f"(* {marker}010): Add the OCaml step. *)\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-010"])
+
+    assert exit_code == 0
+    assert "Marked evolution as done" in capsys.readouterr().out
+    assert source.read_text(encoding="utf-8") == "(* DONE(EVO-010): Add the OCaml step. *)\n"
+
+
+def test_probe_done_marks_one_of_multiple_markers_on_same_line(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(f"# {marker}010): First.  # {marker}020): Second.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-010"])
+
+    assert exit_code == 0
+    assert "Marked evolution as done" in capsys.readouterr().out
+    assert source.read_text(encoding="utf-8") == "# DONE(EVO-010): First.  # TODO(EVO-020): Second.\n"
+
+
+def test_probe_done_fails_for_nonexistent_evolution(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "tool.py"
+    source.write_text("# TODO(EVO-010): Add the first step.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-999"])
+
+    assert exit_code == 1
+    assert "Could not mark evolution as done: Evolution EVO-999 was not found." in capsys.readouterr().out
+
+
+def test_probe_done_fails_for_invalid_marker(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "tool.py"
+    source.write_text("# TODO(EVO-010): Add the first step.\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "done", "invalid"])
+
+    assert exit_code == 1
+    assert "Could not mark evolution as done: Invalid evolution id: invalid" in capsys.readouterr().out
+
+
+def test_probe_done_preserves_crlf_newlines(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_bytes(f"# {marker}010): Add the first step.\r\n".encode("utf-8"))
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-010"])
+
+    assert exit_code == 0
+    assert source.read_bytes() == b"# DONE(EVO-010): Add the first step.\r\n"
+
+
+def test_probe_done_preserves_file_permissions(tmp_path: Path, capsys) -> None:
+    marker = "TODO" + "(EVO-"
+    source = tmp_path / "tool.py"
+    source.write_text(f"# {marker}010): Add the first step.\n", encoding="utf-8")
+    source.chmod(0o754)
+
+    exit_code = main(["--root", str(tmp_path), "done", "EVO-010"])
+
+    assert exit_code == 0
+    assert source.stat().st_mode & 0o777 == 0o754
