@@ -72,8 +72,8 @@ def build_parser() -> argparse.ArgumentParser:
     add = add_command("add", "add one ordered evolution marker", run_add)
     add.add_argument(
         "path",
-        type=Path,
-        help="source file or existing directory where the evolution marker belongs; directories use Evolutions.txt",
+        type=str,
+        help="source file or existing directory where the evolution marker belongs; directories use Evolutions.txt; append :LINE to insert before that line",
     )
     add.add_argument("description", nargs="+", help="evolution description to record")
     done = add_command("done", "mark an evolution as done by changing TODO(EVO-XXX) to DONE(EVO-XXX)", run_done)
@@ -128,11 +128,23 @@ def run_add(args: argparse.Namespace, workspace: Workspace, out: TextIO) -> int:
         out.write("Could not add evolution: plan scan skipped unreadable files; fix file access and try again.\n")
         return EXIT_FAILURE
 
+    # Parse file:line syntax
+    path_str = args.path
+    line_number = None
+    if ":" in path_str:
+        parts = path_str.rsplit(":", 1)
+        path_str = parts[0]
+        try:
+            line_number = int(parts[1])
+        except ValueError:
+            out.write(f"Could not add evolution: invalid line number '{parts[1]}'\n")
+            return EXIT_FAILURE
+
     try:
         recorded = EvolutionRecorder().record(
             workspace.root,
             plan,
-            AddEvolutionRequest(" ".join(args.description), args.path),
+            AddEvolutionRequest(" ".join(args.description), Path(path_str), line_number),
         )
     except ValueError as exc:
         out.write(f"Could not add evolution: {exc}\n")

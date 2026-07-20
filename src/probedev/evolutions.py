@@ -14,11 +14,13 @@ class AddEvolutionRequest:
     """User request to append one marker.
 
     The target can be a source file or an existing directory that receives
-    the marker in Evolutions.txt.
+    the marker in Evolutions.txt. When line_number is provided, the marker
+    is inserted before that line instead of appending.
     """
 
     description: str
     path: Path
+    line_number: int | None = None
 
 
 @dataclass(frozen=True)
@@ -88,7 +90,7 @@ class EvolutionRecorder:
                 "use a recognized source extension (e.g. .py, .go) or filename (e.g. Makefile)."
             )
         marker = self._id_allocator.next_default_marker(plan)
-        line = self._write_marker(path, marker, description)
+        line = self._write_marker(path, marker, description, request.line_number)
         return AddedEvolution(marker, description, path, line)
 
     def _target_path(self, root: Path, request: AddEvolutionRequest) -> Path:
@@ -96,6 +98,13 @@ class EvolutionRecorder:
         path = (root / request.path).resolve()
         relative_path = path.relative_to(root)
         target_is_directory = path.is_dir()
+
+        # Reject directory targets with line numbers
+        if target_is_directory and request.line_number is not None:
+            raise ValueError(
+                f"target path is a directory and cannot have a line number: {request.path}"
+            )
+
         parts_to_scan = relative_path.parts if target_is_directory else relative_path.parts[:-1]
         skipped_dir = next((part for part in parts_to_scan if part in SKIPPED_DIRS), None)
         if skipped_dir is not None:
@@ -107,7 +116,7 @@ class EvolutionRecorder:
             path = path / "Evolutions.txt"
         return path
 
-    def _write_marker(self, path: Path, marker: str, description: str) -> int:
+    def _write_marker(self, path: Path, marker: str, description: str, line_number: int | None = None) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         comment_style = self._comment_style(path)
         marker_line = f"{comment_style.prefix} TODO({marker}): {description}"
@@ -116,6 +125,9 @@ class EvolutionRecorder:
         if not path.exists():
             # Missing scannable source files are valid add targets and seed a
             # visible plan at the requested path.
+            # For new files, only line 1 is valid (insert at the start).
+            if line_number is not None and line_number != 1:
+                raise ValueError(f"line number {line_number} is out of range for new file; only line 1 is valid")
             path.write_text(f"{marker_line}\n", encoding="utf-8")
             return 1
 
@@ -130,10 +142,25 @@ class EvolutionRecorder:
                 break
 
         lines = content.splitlines()
-        insertion_index = self._insertion_index(lines)
-        if insertion_index > len(lines):
-            lines.append("")
-            insertion_index = len(lines)
+
+        if line_number is not None:
+            # Insert before the specified line (1-indexed)
+            if line_number < 1 or line_number > len(lines) + 1:
+                raise ValueError(f"line number {line_number} is out of range for file with {len(lines)} lines")
+
+            insertion_index = line_number - 1
+            # Preserve leading whitespace from the target line
+            if insertion_index < len(lines):
+                target_line = lines[insertion_index]
+                leading_whitespace = target_line[:len(target_line) - len(target_line.lstrip())]
+                if leading_whitespace:
+                    marker_line = f"{leading_whitespace}{marker_line}"
+        else:
+            insertion_index = self._insertion_index(lines)
+            if insertion_index > len(lines):
+                lines.append("")
+                insertion_index = len(lines)
+
         lines.insert(insertion_index, marker_line)
 
         temp_path = None

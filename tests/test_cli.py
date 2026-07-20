@@ -1717,3 +1717,168 @@ def test_probe_done_preserves_file_permissions(tmp_path: Path, capsys) -> None:
 
     assert exit_code == 0
     assert source.stat().st_mode & 0o777 == 0o754
+
+
+# Tests for file:line syntax support in probedev add
+
+def test_probe_add_inserts_before_specified_line_with_indentation(tmp_path: Path, capsys) -> None:
+    """Insert marker before specified line with target line's leading whitespace."""
+    source = tmp_path / "tool.py"
+    source.write_text("line 1\n    line 2\nline 3\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py:2", "test description"])
+
+    assert exit_code == 0
+    assert "Added evolution" in capsys.readouterr().out
+    assert "- location: tool.py:2" in capsys.readouterr().out
+
+    content = source.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    assert len(lines) == 4
+    assert lines[0] == "line 1"
+    assert lines[1] == "    # TODO(EVO-010): test description"  # Leading whitespace from line 2
+    assert lines[2] == "    line 2"
+    assert lines[3] == "line 3"
+
+
+def test_probe_add_file_without_line_appends_at_eof(tmp_path: Path, capsys) -> None:
+    """Plain file targets without :line still append at EOF (existing behavior)."""
+    source = tmp_path / "tool.py"
+    source.write_text("line 1\nline 2\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py", "appended description"])
+
+    assert exit_code == 0
+    assert "Added evolution" in capsys.readouterr().out
+
+    content = source.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    assert len(lines) == 4
+    assert lines[0] == "line 1"
+    assert lines[1] == "line 2"
+    assert lines[2] == ""  # Empty line before marker
+    assert lines[3] == "# TODO(EVO-010): appended description"
+
+
+def test_probe_add_rejects_directory_with_line_number(tmp_path: Path, capsys) -> None:
+    """Directory targets with :line must fail."""
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+
+    exit_code = main(["--root", str(tmp_path), "add", "subdir:42", "test description"])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "directory and cannot have a line number" in output
+    assert not (subdir / "Evolutions.txt").exists()
+
+
+def test_probe_add_rejects_invalid_line_number_non_numeric(tmp_path: Path, capsys) -> None:
+    """Non-numeric line numbers must be rejected."""
+    source = tmp_path / "tool.py"
+    source.write_text("line 1\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py:abc", "test description"])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "invalid line number 'abc'" in output
+    # Original file should be unchanged
+    assert source.read_text(encoding="utf-8") == "line 1\n"
+
+
+def test_probe_add_rejects_line_number_out_of_range(tmp_path: Path, capsys) -> None:
+    """Line numbers outside file range must be rejected."""
+    source = tmp_path / "tool.py"
+    source.write_text("line 1\nline 2\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py:999", "test description"])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "out of range" in output
+    # Original file should be unchanged
+    assert source.read_text(encoding="utf-8") == "line 1\nline 2\n"
+
+
+def test_probe_add_inserts_before_line_one(tmp_path: Path, capsys) -> None:
+    """Inserting before line 1 should work."""
+    source = tmp_path / "tool.py"
+    source.write_text("line 1\nline 2\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py:1", "test description"])
+
+    assert exit_code == 0
+    assert "- location: tool.py:1" in capsys.readouterr().out
+
+    content = source.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "# TODO(EVO-010): test description"
+    assert lines[1] == "line 1"
+    assert lines[2] == "line 2"
+
+
+def test_probe_add_inserts_after_last_line(tmp_path: Path, capsys) -> None:
+    """Inserting after the last line (line N+1) should work."""
+    source = tmp_path / "tool.py"
+    source.write_text("line 1\nline 2\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "tool.py:3", "test description"])
+
+    assert exit_code == 0
+    assert "- location: tool.py:3" in capsys.readouterr().out
+
+    content = source.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "line 1"
+    assert lines[1] == "line 2"
+    assert lines[2] == "# TODO(EVO-010): test description"
+
+
+def test_probe_add_preserves_go_comment_style_with_indentation(tmp_path: Path, capsys) -> None:
+    """Go files should use // comment style with proper indentation."""
+    source = tmp_path / "main.go"
+    source.write_text("line 1\n    line 2\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "main.go:2", "go evolution"])
+
+    assert exit_code == 0
+
+    content = source.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "line 1"
+    assert lines[1] == "    // TODO(EVO-010): go evolution"
+    assert lines[2] == "    line 2"
+
+
+def test_probe_add_preserves_ocaml_comment_style_with_indentation(tmp_path: Path, capsys) -> None:
+    """OCaml files should use (* *) comment style with proper indentation."""
+    source = tmp_path / "main.ml"
+    source.write_text("line 1\n    line 2\n", encoding="utf-8")
+
+    exit_code = main(["--root", str(tmp_path), "add", "main.ml:2", "ml evolution"])
+
+    assert exit_code == 0
+
+    content = source.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "line 1"
+    assert lines[1] == "    (* TODO(EVO-010): ml evolution *)"
+    assert lines[2] == "    line 2"
+
+
+def test_probe_add_rejects_new_file_with_line_greater_than_one(tmp_path: Path, capsys) -> None:
+    """New files with line > 1 must be rejected."""
+    # File does not exist yet
+    source = tmp_path / "newfile.py"
+
+    exit_code = main(["--root", str(tmp_path), "add", "newfile.py:42", "test description"])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "out of range for new file" in output
+    assert not source.exists(), "File should not be created"
