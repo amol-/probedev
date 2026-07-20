@@ -1,270 +1,134 @@
 ---
 name: probe-idea
-description: Implement an idea in Architectural Probe style to reveal the proposed architecture before committing to the full implementation.
+description: Create or refine a small executable architectural probe with a complete, tool-verified evolution path to graduation.
 ---
 
-# Architectural Probe Style
+# Probe and evolve
 
-An Architectural Probe is a deliberately incomplete but executable implementation of one idea, built inside the real target codebase, whose purpose is to reveal whether the proposed architecture belongs there before committing to the full implementation.
+Use this skill when the user wants to test an architectural direction before building the full feature.
 
-The deliverable is the code. A probe is an alternative to an architecture document, not a prompt to write one.
+A **probe** is small, real, runnable code in the target codebase. It is an architectural hypothesis: it makes the proposed entrypoint, modules, types, functions, responsibilities, and collaboration visible so a reviewer can decide whether the structure belongs in this codebase.
 
-A probe is allowed to defer production completeness, but not design discipline.
-It must already be shaped like code we would be willing to evolve. Do not use
-"this is only a probe" to justify shallow modules, vague names, fake boundaries,
-test-only architecture, dependency injection for convenience, or code that would
-need to be thrown away if the idea is accepted.
+A probe is not a design document, detached demo, mock-only prototype, or a partial full implementation. It may use fake business behavior, but its boundaries and wiring must be real enough to reveal how the system would work.
 
-A successful probe should be evolved, not rewritten. If the probe would need to
-be discarded and reimplemented properly after acceptance, it is a prototype, not
-an Architectural Probe.
+An **evolution** is one small future change. Its active anchor is `TODO(EVO-###)`, created by `probedev`. Together, the active evolutions are the complete high-level plan from the probe to the agreed feature's production-ready implementation. **Graduation** means that agreed scope is real software and has no active `TODO(EVO-###)` markers.
 
-## Definition
+## Build the architectural probe
 
-An Architectural Probe must:
+Before editing, state in one sentence:
 
-- live in the real codebase being changed
-- execute as real code, not pseudocode or a detached prototype
-- use the most realistic existing entrypoint or interaction boundary for the idea
-- cover the smallest coherent version of the idea
-- include a complete ordered evolution plan from the probe to graduation
-- reuse existing project infrastructure and integration points whenever they exist
-- expose the key components, responsibilities, names, boundaries, and data/control flow
-- stay small enough for a human to review in minutes
-- be easy to remove if the idea is rejected
+- **Feature goal:** the requested user-visible result.
+- **Architectural question:** what the probe must reveal about fit, boundaries, ownership, or integration.
 
-A detached demo, mock-only prototype, architecture note, code sketch, or non-executable design is not an Architectural Probe.
+Build the smallest runnable slice that answers that question:
 
-The executable probe may be deliberately small, but the evolution plan may not be partial. A reviewer should be able to read the probe plus its `TODO(EVO-...)` markers and understand the intended path from the current probe to the finished scope.
+- use the real codebase and its natural entrypoint;
+- reuse existing routing, storage, UI, CLI, and test infrastructure when it exists;
+- create the real names, modules, types, and function signatures being evaluated;
+- wire the collaborators through their real integration points; and
+- implement only the shortest happy path needed to make that collaboration observable.
 
-## Architectural Question
+Use a small stub when a function's internal logic is not what the probe is testing. A stub may return a fixed value, use in-memory state, or implement only a happy path so the probe runs.
 
-Before writing any code, name the architectural question the probe is supposed to answer, distinct from the feature goal. The feature goal is what the user asked for ("HTTPS works"); the architectural question is what the probe must reveal ("can the existing harness absorb TLS cheaply?", "do these boundaries hold once a second signal type is added?", "does this responsibility belong in the scheduler or the worker?").
+Do not fake the connections between components. The real entrypoint must call the real classes, functions, modules, and integration points that the probe is evaluating. For example, a CLI may call a real `NoteService`, which calls a real `NoteStore`; the store may keep notes in memory instead of a database. Do not make the CLI print a result directly and skip `NoteService` or `NoteStore`.
 
-Choose the probe shape to answer that question in the smallest way. If the question is about fit with existing infrastructure, the probe must touch that infrastructure. If the question is about new boundaries, the probe must place those boundaries where they would really live.
+Focus on structure, not algorithm details. The probe should let a reviewer quickly see which components exist, who owns each responsibility, and how control and data move between them. Put unfinished business rules, persistence, validation, error handling, retries, configuration, migrations, performance work, and broad test coverage into evolutions unless one is the architectural question itself.
 
-A probe that satisfies the feature goal while sidestepping the architectural question is not a successful probe, even if it runs.
+Do not build the full feature. Do not add speculative abstractions, broad configuration, compatibility layers, or unrelated refactoring. Verify the probe with one focused command, smoke test, or happy-path test.
 
-## Scope
+## Add evolutions where their code will change
 
-Implement the smallest coherent slice that makes the idea real enough to evaluate.
+Make a short checklist of every capability, integration point, and production concern named by the user or requirement. Before finishing, every item must map to either:
 
-Small scope applies to implemented behavior, not to planning coverage. The code should avoid production hardening and broad implementation, but it must still place all currently known evolutions needed to graduate the requested scope.
+- executable probe behavior, or
+- exactly one active evolution at the code location that will change.
 
-For a refactoring idea, move only enough existing behavior to exercise the proposed structure through a representative real path. Do not perform a broad migration unless the architecture cannot be evaluated without it.
+For every evolution with a known code owner, use `probedev add` with the exact file and line beside the future implementation:
 
-For a new feature or component, implement enough user-visible or API-visible behavior to show how it fits into the existing system. Do not build the full product surface.
-
-For a new complete software idea, create the miniature real shape of the software: project structure, runtime, entrypoint, main flow, and first meaningful component boundaries. The goal is to reveal what components must interact for the software to exist and live.
-
-Do not reduce the probe to one operation when the idea itself is a small capability set. For example, probing "manage movies" may require minimal add, edit, remove, and view flows because those flows define "manage." Omit robustness and edge cases, not flows that are inherent to the idea.
-
-When the requested idea describes a full tool, application, or workflow, include enough executable skeleton to reveal the main components and include ordered evolution markers for every major missing capability described by the intent source. Do not leave known requirements from the current agreed scope unrepresented just because they are not implemented in the probe.
-
-## Entrypoints And Integration
-
-A probe must use the interaction boundary the real implementation would naturally use.
-
-If the system has a GUI, TUI, API, CLI, background workflow, service boundary, or other external interaction model, probe through that same model. Do not add a separate command or fake entrypoint when that would avoid the real integration question.
-
-Create a small temporary entrypoint only when no suitable one exists yet, or when the entrypoint itself is part of the architectural question.
-
-Use real integration points where practical. Reuse existing persistence, routing, dependency injection, job systems, clients, UI patterns, and test harnesses when the codebase already provides them.
-
-If an existing fixture, harness, helper, or module already owns the boundary the idea touches, extend it rather than creating a sibling. Creating a parallel fixture, a parallel helper, or a parallel test file is the same mistake as creating a fake entrypoint — it avoids the real integration question by standing up an isolated copy next to the thing the probe should be pressing on. The ease of deleting a new file is not a reason to add one when the architectural question is whether the existing code can absorb the idea.
-
-Substitutes are acceptable only when the external dependency is not what is being probed and the substitute preserves the intended boundary. For example, an in-memory cache may stand in for Redis if the cache backend is not the architectural question.
-
-## Review Budget
-
-The probe must be reviewable in minutes, not hours.
-
-Use this as a hard design pressure:
-
-- aim for a 5-15 minute human review
-- touch a small number of files
-- keep the diff to the smallest size that honestly exposes the architecture
-- split or narrow the idea if the probe grows beyond quick review
-
-If a reviewer must invest hours to understand whether the idea fits, the probe failed even if it runs.
-
-## Code Shape
-
-Prefer:
-
-- concrete code over speculative abstractions
-- comments that describe the intended responsibility, flow, or omitted production behavior
-- real names for the concepts being evaluated
-- explicit wiring over hidden magic
-- existing project conventions over new patterns
-- localized changes over broad rewrites
-- visible constraints in code over explanatory documents
-
-Avoid:
-
-- production hardening
-- comprehensive error handling
-- retries, fallbacks, recovery paths
-- support for edge cases
-- broad configuration systems
-- plugin systems unless the plugin system is the idea being probed
-- premature abstractions
-- backward compatibility layers
-- performance optimization
-- unrelated refactoring
-- sweeping migrations
-- broad test matrices
-
-Stay concrete by default. Introduce generalized abstractions only when generalization is the actual idea being probed, or when the existing codebase already requires that shape.
-
-Do not name real architecture objects as probes. Avoid names like `MovieProbeService` or `ProbeMovieManager`. Use the real names being evaluated, such as `MovieLibrary` or `MovieRepository`.
-
-## Comments As Pseudocode
-
-Probe code should include concise comments that make the agent's intended architecture legible even where the executable slice is deliberately small.
-
-Use comments as code-local pseudocode for:
-
-- the responsibility of each new component, entrypoint, or boundary introduced by the probe
-- the intended control flow when the probe implements only the shortest happy path
-- important production behavior intentionally omitted to keep the probe reviewable
-- integration assumptions that a reviewer must understand before accepting the architecture
-
-Comments should explain intent and destination, not restate syntax. A reviewer should be able to skim the comments plus names and understand what the agent was trying to build, even if some implementation details are still represented only by `TODO(EVO-...)` markers.
-
-Do not replace executable code with comments. The probe must still run. Comments are supporting pseudocode for the architecture, while `TODO(EVO-...)` markers are the ordered graduation plan.
-
-## TODO(EVO)
-
-Surface the complete graduation plan in the code with editor-recognizable ordered TODOs:
-
-```text
-<comment> TODO(EVO-010): Use Redis for cache sharing across concurrent workers
-<comment> Why:
-<comment> - The probe's in-memory cache proves the call flow, but it would lose consistency once multiple workers handle requests.
-<comment> Done:
-<comment> - Cache reads/writes use the existing Redis client path.
-<comment> - The in-memory cache is gone from production flow.
-<comment> - The focused concurrency smoke test passes.
-<comment> Non-Goals:
-<comment> - Do not add a general cache abstraction.
-<comment> - Do not add broad invalidation policy or unrelated retry/backoff behavior.
+```bash
+probedev add path/to/codefile.ext:LINE "Short, specific title"
 ```
 
-Use `TODO(EVO-###)` style markers for concrete evolution steps from probe toward real implementation. IDs must be stable, ordered, and zero-padded, such as `TODO(EVO-010)`, `TODO(EVO-020)`, and `TODO(EVO-030)`. Place each marker at the exact code location where the future work belongs. In source files, write the marker and its body using the language's normal comment prefix (`#`, `//`, `--`, etc.). The marker title must be short and immediately obvious, then the body must include `Why`, `Done`, and `Non-Goals` guidance.
+First locate the target from the project root, for example:
 
-Evolution markers are not optional debt notes. They are the code-local implementation plan. For the requested scope, the probe is incomplete unless the ordered markers cover the known path to graduation. Each evolution should contain enough information for an agent or developer to implement it independently using only the marker and the code it relates to. If an implementer would need product context, design intent, acceptance criteria, or scope boundaries from outside the marker and the code it touches, the evolution is not well written yet.
+```bash
+nl -ba path/to/codefile.ext
+```
 
-Evolutions must live in code by default. Missing files are not a reason to use `Evolutions.txt`: create the smallest honest placeholder for the future code owner and put the marker there. Use `Evolutions.txt` only as an exceptional escape hatch when no specific code location can own the step, such as validating the probe against a real running environment, confirming an external operational constraint, or recording a project-level decision that affects several parts of the probe equally. Put `Evolutions.txt` in the closest relevant directory, using the project root only when the step is truly project-wide. In `.txt` files, the evolution body continues until a blank line, the next evolution marker, or the end of the file.
+Use that displayed relative path and line. Do not guess a path or retry alternate paths. Run exactly one `add` command for that evolution.
 
-Before finishing a probe, compare the intent source, such as the prompt, requirement file, issue, BDD scenarios, or user request, against the code and verify that every described product capability is either:
+`probedev add` creates the correctly formatted, positioned anchor and allocates its ID. After it succeeds, use the returned ID. Do not add another anchor, invent an ID, or move the generated anchor. Extend that generated evolution with a self-contained body:
 
-- minimally represented by executable probe behavior, or
-- represented by a specific ordered `TODO(EVO-...)` marker located where the future work belongs.
+```text
+TODO(EVO-010): Short, specific title
+Why:
+- Why this gap exists at this location and how it relates to the probe.
+Done:
+- Concrete observable completion signal.
+Non-Goals:
+- Explicit work this evolution must not add.
+```
 
-If a requirement is too ambiguous to place, add the smallest clarifying command/path/code boundary that exposes the ambiguity, or ask the user. Do not silently omit it.
+Each evolution is one independently actionable, high-level step. Its `Why`, `Done`, and `Non-Goals` state the purpose, finish line, and boundary; they do not prescribe algorithms or a file-by-file implementation. Split “implement the rest” into ordered steps. Do not implement an active evolution in the same change that creates it.
 
-Build a lightweight intent ledger while working: extract the named capabilities, integration points, production concerns, and known follow-up phases from the user request and any referenced artifact, then check them off against either executable code or a specific ordered marker before reporting completion. If an item does not map cleanly to a file location, add a narrow marker at the closest natural boundary where the future implementation would start.
+Never pass a directory when a known file, type, function, method, class, route, or code block owns the work. Do not use a bare source-file target for code-owned work: choose the line beside the block that will change.
 
-Good `TODO(EVO)` markers:
+Use a directory target only when no code unit can own the work, such as a project-wide external operational decision. Then and only then use:
 
-- start with a short title that makes the evolution immediately recognizable
-- explain Why the evolution should be done
-- define Done with the concrete finish line or acceptance signal
-- name Non-Goals that prevent the implementer from taking the wrong path
-- identify a specific production gap
-- describe the long-term direction
-- act as checkpoints for evolving probe -> proof of concept -> MVP -> production
-- make constraints reviewable in the code itself
-- let a reviewer predict the intended sequence of implementation
-- preserve the project plan as code-local work items rather than relying on the final chat summary
+```bash
+probedev add path/to/directory "Short, specific project-level title"
+```
 
-Avoid vague markers such as `TODO(EVO): clean this up`.
+This creates `path/to/directory/Evolutions.txt`. It is an exception, not a shortcut for an unknown or inconvenient code location. For a new source file, create the smallest honest placeholder and use `newfile.ext:1`.
 
-Avoid oversized markers that hide multiple phases such as `TODO(EVO-010): Implement the rest of the app`. Split them into ordered evolutions that a future `probe evolve` style workflow could apply one at a time.
+## Verify the active plan
 
-Do not add TODOs mechanically. Add them where a reviewer needs to understand an intentional omission, constraint, concern, or future replacement.
+Run commands from the target project root, or pass its path with `--root`.
 
-Ideally, evolving a successful probe toward the real implementation should mostly mean replacing or resolving `TODO(EVO-...)` markers while keeping the proven architecture shape. Graduation for the current scope means no active `TODO(EVO-...)` markers remain.
+- `probedev add file.ext:LINE "title"` is the default for code-owned work.
+- `probedev add DIR "title"` is only for work with no code owner.
+- `probedev identify` repairs missing, invalid, placeholder, or duplicate IDs.
+- `probedev show EVO-010` opens a pending evolution at its anchor.
+- `probedev list` audits the active plan.
+- `probedev done EVO-010` closes an implemented evolution.
 
-## Graduation Plan Review
+Before reporting a new or refined probe, run:
 
-Before completing the probe, perform a short self-review:
+```bash
+probedev list --short
+```
 
-- Does the executable code expose the intended entrypoint, main components, and control flow?
-- Do the comments make each new boundary's intended responsibility understandable without a separate design doc?
-- Does the ordered evolution list cover all current-scope capabilities through graduation?
-- Is each evolution placed where the implementation belongs?
-- Does every item from the intent ledger map to executable behavior, an intent comment, or a `TODO(EVO-...)` marker?
-- Is each evolution small enough to be applied independently?
-- Does each evolution have a short obvious title, Why, Done, and Non-Goals, with enough guidance to implement independently without outside product context, design intent, acceptance criteria, or scope boundaries?
-- Are there missing product capabilities, production-readiness gaps, or integration points that are neither implemented nor represented by an evolution?
+Check all of these, not just the exit status:
 
-If any answer is no, refine the probe or add/rewrite evolution markers before reporting completion.
+1. Every expected active ID appears exactly once.
+2. No unexpected active ID appears.
+3. The output has no malformed-marker or duplicate-ID warning.
+4. Listed files are the intended code owners. `Evolutions.txt` appears only for genuinely ownerless project work.
+5. Comparing the list with the requirement checklist shows every known step needed to turn the probe into the agreed production-ready feature.
 
-## Verification
+If any check fails, fix the plan and run `probedev list --short` again. Inspect normal `probedev list` to confirm every evolution has its title, `Why`, `Done`, and `Non-Goals` body.
 
-A probe is not a test-design exercise.
+## Apply one evolution
 
-Do not add broad or polished test coverage for the probed idea. Add or run only enough verification to prove the probe executes, such as:
+If the user says “do EVO-010” (or equivalent):
 
-- one narrow smoke test
-- one focused happy-path test
-- one example
-- one manual command or interaction path
+1. Use `probedev show EVO-010` or `probedev list` to find its anchor.
+2. Implement only that evolution's `Done` criteria. Respect its `Non-Goals`.
+3. Run focused verification.
+4. Run `probedev done EVO-010`. It must print `Marked evolution as done`.
+5. Do not delete or rename the marker yourself. If `done` fails, fix the problem and run it again.
+6. Run `probedev list --short` and confirm `EVO-010` is absent while every still-unimplemented expected evolution remains.
 
-The existing test suite for the surrounding system should continue to pass. Update existing tests only when the probed idea intentionally changes that behavior.
+Do not implement neighboring evolutions merely because their code is nearby.
 
-## Iterating On A Probe
+## Final review
 
-When the user asks to continue, adjust, refine, or iterate on an existing Architectural Probe, treat the current probe code as the artifact under review.
+Before completion, confirm:
 
-Do not start a second probe unless the user explicitly asks to compare alternatives.
+- The probe runs through a realistic entrypoint.
+- A reviewer can understand the proposed components, responsibilities, boundaries, and main flow in minutes.
+- Every agreed-scope item, including known production-readiness work, is executable probe behavior or one complete code-local evolution.
+- The active evolutions form the complete high-level plan from this probe to the agreed production-ready feature.
+- `probedev list --short` exactly matches that plan with no warnings.
 
-Do not implement a "probe of the changes." Evolve the existing probe in place to answer the new architectural question while preserving Architectural Probe constraints.
-
-Before editing an existing probe, identify which iteration mode applies:
-
-- refine the same probe: adjust boundaries, names, responsibilities, entrypoints, or missing core flows in the existing probe
-- fork an alternative probe: keep the existing probe understandable and create a separate small alternative only when the user wants to compare architectural directions
-- graduate the probe: stop probing and begin turning the accepted direction into production implementation by resolving `TODO(EVO-...)` markers and adding production hardening
-
-Default to refining the same probe.
-
-When refining, keep the total result reviewable in minutes. If the requested iteration would make the probe too large, narrow the question, replace part of the probe, or tell the user that the probe is ready to graduate or split.
-
-Keep existing `TODO(EVO-...)` markers accurate and complete. Remove markers whose gaps have been resolved, update markers whose direction changed, and add markers for missing graduation steps discovered during the iteration.
-
-Do not let iteration drift into production completion. Unless the user explicitly asks to graduate the probe, continue to avoid broad hardening, full test coverage, compatibility layers, large migrations, and unrelated refactoring.
-
-## Success Criteria
-
-Success is not measured by production completeness.
-
-Success is measured by whether quick code review can answer:
-
-- Does this idea belong in this codebase?
-- Are these the right boundaries?
-- Are these the right names?
-- Are these the right integration points?
-- Is the flow understandable?
-- Is the code easy to remove if the idea is rejected?
-- Does the ordered evolution plan cover all known work needed to graduate the requested scope?
-- Can a human predict where the agent intends to take the implementation next?
-- Would we be happy to evolve this into the real implementation?
-- Does each evolution provide a short obvious title, Why, Done, and Non-Goals with all guidance needed for independent developers or agents to implement it?
-
-A probe can succeed by showing that the idea should be rejected, split, renamed, moved, or redesigned. Making architectural friction visible early is a successful outcome.
-
-## Completion Note
-
-When done, keep the written summary brief. Do not write an architecture document.
-
-Mention only:
-
-- what coherent slice was implemented
-- where the realistic entrypoint is
-- how to run or verify it
-- any major intentional omissions that are also marked in code
-
-The code remains the primary artifact.
+Report only the runnable slice, entrypoint and verification command, and major omissions already represented by active evolutions.
