@@ -1729,8 +1729,9 @@ def test_probe_add_inserts_before_specified_line_with_indentation(tmp_path: Path
     exit_code = main(["--root", str(tmp_path), "add", "tool.py:2", "test description"])
 
     assert exit_code == 0
-    assert "Added evolution" in capsys.readouterr().out
-    assert "- location: tool.py:2" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Added evolution" in output
+    assert "- location: tool.py:2" in output
 
     content = source.read_text(encoding="utf-8")
     lines = content.splitlines()
@@ -1749,7 +1750,8 @@ def test_probe_add_file_without_line_appends_at_eof(tmp_path: Path, capsys) -> N
     exit_code = main(["--root", str(tmp_path), "add", "tool.py", "appended description"])
 
     assert exit_code == 0
-    assert "Added evolution" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Added evolution" in output
 
     content = source.read_text(encoding="utf-8")
     lines = content.splitlines()
@@ -1809,7 +1811,8 @@ def test_probe_add_inserts_before_line_one(tmp_path: Path, capsys) -> None:
     exit_code = main(["--root", str(tmp_path), "add", "tool.py:1", "test description"])
 
     assert exit_code == 0
-    assert "- location: tool.py:1" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "- location: tool.py:1" in output
 
     content = source.read_text(encoding="utf-8")
     lines = content.splitlines()
@@ -1827,7 +1830,8 @@ def test_probe_add_inserts_after_last_line(tmp_path: Path, capsys) -> None:
     exit_code = main(["--root", str(tmp_path), "add", "tool.py:3", "test description"])
 
     assert exit_code == 0
-    assert "- location: tool.py:3" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "- location: tool.py:3" in output
 
     content = source.read_text(encoding="utf-8")
     lines = content.splitlines()
