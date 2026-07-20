@@ -278,6 +278,18 @@ def workspace_has_existing_source_directory(command_context: CommandContext) -> 
     command_context.root.joinpath("src").mkdir()
 
 
+@given("the workspace has a source file with content")
+def workspace_has_source_file_with_content(command_context: CommandContext) -> None:
+    write_source(
+        command_context.root, "def build():\n    return value\n", "src/target.py"
+    )
+
+
+@given("the workspace has no file at the target path")
+def workspace_has_no_file_at_target_path(command_context: CommandContext) -> None:
+    assert not (command_context.root / "src" / "new.py").exists()
+
+
 # probedev: ignore-end
 
 
@@ -388,6 +400,49 @@ def run_add_with_target_file(command_context: CommandContext, capsys: pytest.Cap
 @when("the developer runs `probedev add` with a directory and new evolution description")
 def run_add_with_directory(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
     run_probe(command_context, capsys, ["add", "src", "Add a directory evolution."])
+
+
+@when("the developer runs `probedev add` with a file:line target and new evolution description")
+def run_add_with_file_line_target(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(
+        command_context,
+        capsys,
+        ["add", "src/target.py:2", "Add a line-specific evolution."],
+    )
+
+
+@when("the developer runs `probedev add` with a directory:line target and new evolution description")
+def run_add_with_directory_line_target(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(
+        command_context, capsys, ["add", "src:2", "Add a line-specific evolution."]
+    )
+
+
+@when("the developer runs `probedev add` with a file:line target where line is not a number")
+def run_add_with_non_numeric_line_target(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(
+        command_context,
+        capsys,
+        ["add", "src/target.py:not-a-number", "Add a line-specific evolution."],
+    )
+
+
+@when("the developer runs `probedev add` with a file:line target where line is out of range")
+def run_add_with_out_of_range_line_target(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(
+        command_context,
+        capsys,
+        ["add", "src/target.py:4", "Add a line-specific evolution."],
+    )
+
+
+@when("the developer runs `probedev add` with a file:line target where line is greater than 1 for a non-existent file")
+def run_add_with_missing_file_line_target(command_context: CommandContext, capsys: pytest.CaptureFixture[str]) -> None:
+    run_probe(
+        command_context,
+        capsys,
+        ["add", "src/new.py:2", "Add a line-specific evolution."],
+    )
 
 
 @when("the developer runs `probedev identify`")
@@ -806,6 +861,58 @@ def assert_no_marker_appended(command_context: CommandContext) -> None:
     assert (command_context.root / "tool.py").read_text(encoding="utf-8") == (
         "# TODO(EVO-010): Existing visible step.\n"
     )
+
+
+@then("the system inserts the marker before the specified line")
+def assert_marker_inserted_before_specified_line(command_context: CommandContext) -> None:
+    assert "- location: src/target.py:2" in command_context.output
+    assert (command_context.root / "src" / "target.py").read_text(encoding="utf-8").splitlines() == [
+        "def build():",
+        "    # TODO(EVO-020): Add a line-specific evolution.",
+        "    return value",
+    ]
+
+
+@then("the marker uses the target line's leading whitespace")
+def assert_marker_uses_target_indentation(command_context: CommandContext) -> None:
+    marker_line = (
+        (command_context.root / "src" / "target.py")
+        .read_text(encoding="utf-8")
+        .splitlines()[1]
+    )
+    assert marker_line.startswith("    ")
+
+
+@then("the system reports that directories cannot have line numbers")
+def assert_directory_line_number_rejected(command_context: CommandContext) -> None:
+    assert "directory and cannot have a line number" in command_context.output
+
+
+@then("no Evolutions.txt is created")
+def assert_no_evolutions_file_created(command_context: CommandContext) -> None:
+    assert not (command_context.root / "src" / "Evolutions.txt").exists()
+
+
+@then("the system reports the invalid line number")
+def assert_invalid_line_number_reported(command_context: CommandContext) -> None:
+    assert "invalid line number 'not-a-number'" in command_context.output
+    assert (command_context.root / "src" / "target.py").read_text(encoding="utf-8") == "def build():\n    return value\n"
+
+
+@then("the system reports the line number is out of range")
+def assert_out_of_range_line_number_reported(command_context: CommandContext) -> None:
+    assert "line number 4 is out of range for file with 2 lines" in command_context.output
+    assert (command_context.root / "src" / "target.py").read_text(encoding="utf-8") == "def build():\n    return value\n"
+
+
+@then("the system reports the line number is out of range for the new file")
+def assert_missing_file_line_number_rejected(command_context: CommandContext) -> None:
+    assert "line number 2 is out of range for new file; only line 1 is valid" in command_context.output
+
+
+@then("no file is created")
+def assert_no_file_created(command_context: CommandContext) -> None:
+    assert not (command_context.root / "src").exists()
 
 
 # probedev: ignore-end

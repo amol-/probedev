@@ -117,7 +117,6 @@ class EvolutionRecorder:
         return path
 
     def _write_marker(self, path: Path, marker: str, description: str, line_number: int | None = None) -> int:
-        path.parent.mkdir(parents=True, exist_ok=True)
         comment_style = self._comment_style(path)
         marker_line = f"{comment_style.prefix} TODO({marker}): {description}"
         if comment_style.suffix:
@@ -128,6 +127,7 @@ class EvolutionRecorder:
             # For new files, only line 1 is valid (insert at the start).
             if line_number is not None and line_number != 1:
                 raise ValueError(f"line number {line_number} is out of range for new file; only line 1 is valid")
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"{marker_line}\n", encoding="utf-8")
             return 1
 
