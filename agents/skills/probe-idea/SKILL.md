@@ -43,11 +43,19 @@ Make a short checklist of every capability, integration point, and production co
 - executable probe behavior, or
 - exactly one active evolution at the code location that will change.
 
-For every evolution with a known code owner, use `probedev add` with the exact file and line beside the future implementation:
+For every evolution with a known code owner, use `probedev add` with the file and the first line of the smallest code block that owns the future change:
 
 ```bash
 probedev add path/to/codefile.ext:LINE "Short, specific title"
 ```
+
+Choose the block by scope:
+
+- use a function, method, class, type, route, or command declaration when the whole component must evolve;
+- use an `if`, loop, or other nested block when only that block must evolve; and
+- for a new component placeholder, omit `:LINE` so the first evolution is appended at the end of its new file.
+
+`add` inserts the evolution immediately before the chosen block. Do not choose an arbitrary inner statement or call site unless that exact statement is the work to evolve.
 
 First locate the target from the project root, for example:
 
@@ -71,7 +79,7 @@ Non-Goals:
 
 Each evolution is one independently actionable, high-level step. Its `Why`, `Done`, and `Non-Goals` state the purpose, finish line, and boundary; they do not prescribe algorithms or a file-by-file implementation. Split “implement the rest” into ordered steps. Do not implement an active evolution in the same change that creates it.
 
-Never pass a directory when a known file, type, function, method, class, route, or code block owns the work. Do not use a bare source-file target for code-owned work: choose the line beside the block that will change.
+Never pass a directory when a known file, type, function, method, class, route, or code block owns the work. Do not use a bare source-file target for existing code-owned work: choose the line beside the block that will change. A newly created component placeholder is the exception because it has no block yet.
 
 Use a directory target only when no code unit can own the work, such as a project-wide external operational decision. Then and only then use:
 
@@ -79,7 +87,7 @@ Use a directory target only when no code unit can own the work, such as a projec
 probedev add path/to/directory "Short, specific project-level title"
 ```
 
-This creates `path/to/directory/Evolutions.txt`. It is an exception, not a shortcut for an unknown or inconvenient code location. For a new source file, create the smallest honest placeholder and use `newfile.ext:1`.
+This creates `path/to/directory/Evolutions.txt`. It is an exception, not a shortcut for an unknown or inconvenient code location. For a new source file, create the smallest honest placeholder and run `probedev add newfile.ext "title"` without `:LINE`.
 
 ## Verify the active plan
 
