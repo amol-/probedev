@@ -65,6 +65,8 @@ nl -ba path/to/codefile.ext
 
 Use that displayed relative path and line. Do not guess a path or retry alternate paths. Run exactly one `add` command for that evolution.
 
+Complete one evolution before starting the next: locate its block, run `add` once, then immediately write its full body. Do not add all marker titles first and plan to fill in their bodies later.
+
 `probedev add` creates the correctly formatted, positioned anchor and allocates its ID. After it succeeds, use the returned ID. Do not add another anchor, invent an ID, or move the generated anchor. Extend that generated evolution with a self-contained body:
 
 ```text
